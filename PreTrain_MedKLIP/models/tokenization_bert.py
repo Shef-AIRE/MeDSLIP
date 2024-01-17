@@ -193,7 +193,7 @@ class BertTokenizer(PreTrainedTokenizer):
         )
         print("vocab_file: ", vocab_file)
         if not os.path.isfile(vocab_file):
-            
+
             raise ValueError(
                 "Can't find a vocabulary file at path '{}'. To load the vocabulary from a Google pretrained "
                 "model use `tokenizer = BertTokenizer.from_pretrained(PRETRAINED_MODEL_NAME)`".format(
@@ -225,7 +225,7 @@ class BertTokenizer(PreTrainedTokenizer):
         return len(self.vocab)
 
     def get_vocab(self):
-        
+
         return dict(self.vocab, **self.added_tokens_encoder)
 
     def _tokenize(self, text):

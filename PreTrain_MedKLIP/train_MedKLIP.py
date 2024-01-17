@@ -335,7 +335,9 @@ def main(args, config):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="PreTrain_MedKLIP/configs/Pretrain_MedKLIP.yaml")
+    parser.add_argument(
+        "--config", default="PreTrain_MedKLIP/configs/Pretrain_MedKLIP.yaml"
+    )
     parser.add_argument("--checkpoint", default="")
     parser.add_argument("--output_dir", default="runs/12-22-2023")
     parser.add_argument("--device", default="cuda")

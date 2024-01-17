@@ -185,6 +185,16 @@ class MedKLIP(nn.Module):
             raise (
                 "Invalid model name. Check the config file and pass one of: resnet18 or resnet50"
             )
+        
+    def _get_vit_basemodel(self, vit_model_name):
+        try:
+            vit_model = self.vit_dict[vit_model_name]
+            print("Image feature extractor:", vit_model_name)
+            return vit_model
+        except:
+            raise (
+                "Invalid model name. Check the config file and pass one of: vit_base_patch16, vit_large_patch16 or vit_huge_patch14"
+            )
 
     def _get_bert_basemodel(self, bert_model_name, freeze_layers):
         try:
