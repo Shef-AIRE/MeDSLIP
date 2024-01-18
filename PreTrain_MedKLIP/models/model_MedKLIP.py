@@ -146,8 +146,13 @@ class MedKLIP(nn.Module):
             "resnet50": models.resnet50(weights=None),
         }
         resnet = self._get_res_basemodel(config["res_base_model"])
+
         num_ftrs = int(resnet.fc.in_features / 2)
         self.res_features = nn.Sequential(*list(resnet.children())[:-3])
+        # posi_vit = self._get_vit_basemodel(config["vit_base_model"])
+        # self.res_features = posi_vit
+        # num_ftrs = int(posi_vit.embed_dim / 2)
+
         self.res_l1 = nn.Linear(num_ftrs, num_ftrs)
         self.res_l2 = nn.Linear(num_ftrs, self.d_model)
 
@@ -220,15 +225,19 @@ class MedKLIP(nn.Module):
         torch.Size([16, 196, 256])
         """
         batch_size = xis.shape[0]
-        res_fea = self.res_features(xis)  # batch_size,feature_size,patch_num,patch_num
-        res_fea = rearrange(res_fea, "b d n1 n2 -> b (n1 n2) d")
-        h = rearrange(res_fea, "b n d -> (b n) d")
+        res_fea = self.res_features(xis)  # batch_size,feature_size,patch_num,patch_num [128, 1024, 14, 14]
+        # cls_fea = res_fea[:, 0]
+        # pos_fea = res_fea[:, 1] 
+        # cls_fea = rearrange(cls_fea, "b d n -> (b n) d")
+        # pos_fea = rearrange(pos_fea, "b d n -> (b n) d")
+        res_fea = rearrange(res_fea, "b d n1 n2 -> b (n1 n2) d") # [128, 196, 1024]
+        h = rearrange(res_fea, "b n d -> (b n) d") # [25088, 1024]
         # batch_size,num,feature_size
         # h = h.squeeze()
-        x = self.res_l1(h)
+        x = self.res_l1(h) # self.res_l1(h) # [*, 1024] -> [*, 1024]
         x = F.relu(x)
 
-        x = self.res_l2(x)
+        x = self.res_l2(x) # self.res_l2(x) # [*, 1024] -> [*, 256]
         out_emb = rearrange(x, "(b n) d -> b n d", b=batch_size)
         return out_emb
 
@@ -246,24 +255,25 @@ class MedKLIP(nn.Module):
         B = images.shape[0]
         device = images.device
         """ Visual Backbone """
-        x = self.image_encoder(images)  # batch_size,patch_num,dim
+        x = self.image_encoder(images)  # batch_size,patch_num,dim [*, 196, 256]
 
-        features = x.transpose(0, 1)  # patch_num b dim
+        features = x.transpose(0, 1)  # patch_num b dim [196, *, 256]
         # query_embed = self.query_embed.weight.unsqueeze(1).repeat(1, B, 1) # query_number, batch, dim
-        query_embed = self.disease_embedding_layer(self.disease_book)
-        query_embed = query_embed.unsqueeze(1).repeat(1, B, 1)
+        query_embed = self.disease_embedding_layer(self.disease_book) # [75, 256]
+        query_embed = query_embed.unsqueeze(1).repeat(1, B, 1) # [75, 128, 256]
         features, ws = self.decoder(
             query_embed,
             features,
             memory_key_padding_mask=None,
             pos=None,
             query_pos=None,
-        )
-        out = self.dropout_feas(features)
+        ) # [75, 128, 256], list([128, 75, 196])-len=4 
+        # TODO what is ws???
+        out = self.dropout_feas(features) # [75, 128, 256]
         if is_train == True and no_cl == False:
             anatomy_query = self.ana_book[
                 smaple_index, :
-            ]  # batch, Q , position_num ,dim
+            ]  # batch, Q , position_num ,dim [128, 75, 8, 768]
             # [Q,B,A]
             ll = out.transpose(0, 1)  # B Q A
             Q = ll.shape[1]
@@ -271,9 +281,9 @@ class MedKLIP(nn.Module):
             ll = self.cl_fc(ll)
             ll = ll.unsqueeze(dim=-1)
             # ll = ll.reshape(B,Q,-1)
-            anatomy_query = anatomy_query.reshape(B * Q, 8, 768)
-            ll = torch.bmm(anatomy_query, ll).squeeze()  # B Q position_num
-            cl_labels = torch.zeros((ll.shape[0])).to(device)
+            anatomy_query = anatomy_query.reshape(B * Q, 8, 768) # [9600, 8, 768]
+            ll = torch.bmm(anatomy_query, ll).squeeze()  # B Q position_num [9600, 8]
+            cl_labels = torch.zeros((ll.shape[0])).to(device) # [9600]
             if exclude_class == True:
                 cl_labels = cl_labels.reshape(B, Q)
                 cl_labels = cl_labels[:, self.keep_class_dim]
@@ -285,14 +295,14 @@ class MedKLIP(nn.Module):
         x = self.classifier(out).transpose(0, 1)  # B query Atributes
 
         if exclude_class == True:
-            labels = labels[:, self.keep_class_dim]
-            x = x[:, self.keep_class_dim, :]
+            labels = labels[:, self.keep_class_dim] # [128, 75]
+            x = x[:, self.keep_class_dim, :] # torch.Size([128, 75, 2])
 
-        labels = labels.reshape(-1, 1)
-        logits = x.reshape(-1, x.shape[-1])
-        Mask = ((labels != -1) & (labels != 2)).squeeze()
+        labels = labels.reshape(-1, 1) # [9600, 1]
+        logits = x.reshape(-1, x.shape[-1]) # [9600, 2]
+        Mask = ((labels != -1) & (labels != 2)).squeeze() # [9600]
 
-        cl_mask = (labels == 1).squeeze()
+        cl_mask = (labels == 1).squeeze() # [9600]
         if is_train == True:
             labels = labels[Mask].long()
             logits = logits[Mask]
