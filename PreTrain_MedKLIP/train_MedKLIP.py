@@ -80,9 +80,9 @@ def train(
         metric_logger.log_every(data_loader, print_freq, header)
     ):
 
-        images = sample["image"].to(device)
-        labels = sample["label"].to(device)
-        index = sample["index"].to(device)
+        images = sample["image"].to(device) # [Batch, 3, 224, 224]
+        labels = sample["label"].to(device) # [Batch, Disease]
+        index = sample["index"].to(device) # [Batch, Disease, Position]
 
         optimizer.zero_grad()
 
