@@ -292,7 +292,7 @@ class MedKLIP(nn.Module):
                 ll = ll[:, self.keep_class_dim, :]
                 ll = ll.reshape(B * (len(self.keep_class_dim)), -1)
 
-        x = self.classifier(out).transpose(0, 1)  # B query Atributes
+        x = self.classifier(out).transpose(0, 1)  # B query Atributes [75, 128, 2] -> [128, 75, 2]
 
         if exclude_class == True:
             labels = labels[:, self.keep_class_dim] # [128, 75]
