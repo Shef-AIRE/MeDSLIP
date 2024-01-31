@@ -83,6 +83,7 @@ def train(
         images = sample["image"].to(device) # [Batch, 3, 224, 224]
         labels = sample["label"].to(device) # [Batch, Disease]
         index = sample["index"].to(device) # [Batch, Disease, Position]
+        matrix = sample["matrix"].to(device) # [Batch, Disease]
 
         optimizer.zero_grad()
 
@@ -90,6 +91,7 @@ def train(
             images,
             labels,
             index,
+            matrix,
             is_train=True,
             no_cl=config["no_cl"],
             exclude_class=config["exclude_class"],
@@ -163,7 +165,7 @@ def main(args, config):
     train_dataloader = DataLoader(
         train_datasets,
         batch_size=config["batch_size"],
-        num_workers=4,
+        num_workers=30,
         pin_memory=True,
         sampler=None,
         shuffle=True,
@@ -177,7 +179,7 @@ def main(args, config):
     val_dataloader = DataLoader(
         val_datasets,
         batch_size=config["batch_size"],
-        num_workers=4,
+        num_workers=30,
         pin_memory=True,
         sampler=None,
         shuffle=True,
@@ -339,10 +341,15 @@ if __name__ == "__main__":
         "--config", default="PreTrain_MedKLIP/configs/Pretrain_MedKLIP.yaml"
     )
     parser.add_argument("--checkpoint", default="")
-    parser.add_argument("--output_dir", default="runs/12-22-2023")
+    parser.add_argument("--output_dir", default="runs/plip2")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--gpu", type=str, default="0", help="gpu")
     args = parser.parse_args()
+    import datetime
+    args.output_dir = os.path.join(
+        args.output_dir,
+        datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
+    )
 
     config = yaml.load(open(args.config, "r"), Loader=yaml.Loader)
 

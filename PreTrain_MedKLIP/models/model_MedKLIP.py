@@ -146,9 +146,9 @@ class MedKLIP(nn.Module):
             "resnet18": models.resnet18(weights=None),
             "resnet50": models.resnet50(weights=None),
         }
-        resnet = vit(reg_token=0, pretrained=False, num_classes=768) #self._get_res_basemodel(config["res_base_model"])
+        resnet = vit(reg_tokens=0, pretrained=False, num_classes=768) #self._get_res_basemodel(config["res_base_model"])
 
-        num_ftrs = int(resnet.head.out_features)
+        num_ftrs = int(resnet.head.in_features)
         self.res_features = nn.Sequential(*list(resnet.children())[:-3])
         # posi_vit = self._get_vit_basemodel(config["vit_base_model"])
         # self.res_features = posi_vit
@@ -228,7 +228,7 @@ class MedKLIP(nn.Module):
         batch_size = xis.shape[0]
         res_fea = self.res_features(xis)  # batch_size,feature_size,patch_num,patch_num [128, 1024, 14, 14]
         
-        x = self.res_l1(h) # self.res_l1(h) # [*, 1024] -> [*, 1024]
+        x = self.res_l1(res_fea) # self.res_l1(h) # [*, 1024] -> [*, 1024]
         x = F.relu(x)
 
         x = self.res_l2(x) # self.res_l2(x) # [*, 1024] -> [*, 256]
@@ -238,7 +238,8 @@ class MedKLIP(nn.Module):
         self,
         images,
         labels,
-        smaple_index=None,
+        matrix,
+        sample_index=None,
         is_train=True,
         no_cl=False,
         exclude_class=False,
@@ -263,10 +264,19 @@ class MedKLIP(nn.Module):
         ) # [75, 128, 256], list([128, 75, 196])-len=4 
         # TODO what is ws???
         out = self.dropout_feas(features) # [75, 128, 256]
+
         if is_train == True and no_cl == False:
+            anatomy_query = torch.zeros_like([sample_index.shape[0],
+                                              sample_index.shape[1],
+                                              sample_index.shape[2],
+                                              self.ana_book[-1]]).to(device) # [128, 75, 8, 768]
             anatomy_query = self.ana_book[
-                smaple_index, :
+                sample_index[sample_index!=-1], :
             ]  # batch, Q , position_num ,dim [128, 75, 8, 768]
+
+            anatomy_query[sample_index==-1, :] = self.ana_book[, :] # [128, 75, 8, 768
+            
+
             # [Q,B,A]
             ll = out.transpose(0, 1)  # B Q A
             Q = ll.shape[1]

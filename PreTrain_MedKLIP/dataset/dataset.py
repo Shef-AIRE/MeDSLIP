@@ -11,7 +11,8 @@ from dataset.randaugment import RandomAugment
 
 
 class MedKLIP_Dataset(Dataset):
-    def __init__(self, csv_path, np_path, mode="train"):
+    def __init__(self, csv_path, np_path, mode="train", num_neg_samples=7):
+        self.num_neg_samples = num_neg_samples
         self.ann = json.load(open(csv_path, "r"))
         self.img_path_list = list(self.ann)
         self.anaomy_list = [
@@ -198,13 +199,15 @@ class MedKLIP_Dataset(Dataset):
         img = PIL.Image.open(img_path).convert("RGB")
         image = self.transform(img)
 
-        return {"image": image, "label": labels, "index": index_list}
+        return {"image": image, "label": labels, "index": index_list, "matrix": class_label}
 
     def triplet_extraction(self, class_label):
         exist_labels = np.zeros(class_label.shape[-1]) - 1
         position_list = []
+        # positive_list = np.zeros([class_label.shape[1], class_label.shape[0]]) - 1
         for i in range(class_label.shape[1]):
             temp_list = []
+            # positive_list[i] = np.zeros(class_label.shape[1]) - 1
             ### extract the exist label for each entity and maintain -1 if not mentioned. ###
             if 0 in class_label[:, i]:
                 exist_labels[i] = 0
@@ -213,18 +216,23 @@ class MedKLIP_Dataset(Dataset):
                 exist_labels[i] = 1
                 ### if the entity exists try to get its position.###
                 ### Note that, the contrastive loss will only be caculated on exist entity as it is meaningless to predict their position for the non-exist entities###
-                temp_list.append(random.choice(np.where(class_label[:, i] == 1)[0]))
+                temp_list.append(-1)
+
+                # positive_list[i, np.unique(np.where(class_label[:, i] == 1)).tolist()] = 1
+
                 try:
                     temp_list = temp_list + random.sample(
-                        np.where(class_label[:, i] != 1)[0].tolist(), 7
+                        np.where(class_label[:, i] != 1)[0].tolist(), self.num_neg_samples
                     )
                 except:
                     print("fatal error")
             if temp_list == []:
                 temp_list = temp_list + random.sample(
-                    np.where(class_label[:, i] != 1)[0].tolist(), 8
+                    np.where(class_label[:, i] != 1)[0].tolist(), self.num_neg_samples + 1
                 )
+                # positive_list.append()
             position_list.append(temp_list)
+
         return exist_labels, position_list
 
     def __len__(self):
