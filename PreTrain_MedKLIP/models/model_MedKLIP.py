@@ -10,6 +10,7 @@ from .transformer import *
 import torchvision.models as models
 from einops import rearrange
 from transformers import AutoModel
+from .PosiViT import vit_small_patch16_224 as vit
 
 """
 args.N
@@ -145,9 +146,9 @@ class MedKLIP(nn.Module):
             "resnet18": models.resnet18(weights=None),
             "resnet50": models.resnet50(weights=None),
         }
-        resnet = self._get_res_basemodel(config["res_base_model"])
+        resnet = vit(reg_token=0, pretrained=False, num_classes=768) #self._get_res_basemodel(config["res_base_model"])
 
-        num_ftrs = int(resnet.fc.in_features / 2)
+        num_ftrs = int(resnet.head.out_features)
         self.res_features = nn.Sequential(*list(resnet.children())[:-3])
         # posi_vit = self._get_vit_basemodel(config["vit_base_model"])
         # self.res_features = posi_vit
@@ -226,20 +227,12 @@ class MedKLIP(nn.Module):
         """
         batch_size = xis.shape[0]
         res_fea = self.res_features(xis)  # batch_size,feature_size,patch_num,patch_num [128, 1024, 14, 14]
-        # cls_fea = res_fea[:, 0]
-        # pos_fea = res_fea[:, 1] 
-        # cls_fea = rearrange(cls_fea, "b d n -> (b n) d")
-        # pos_fea = rearrange(pos_fea, "b d n -> (b n) d")
-        res_fea = rearrange(res_fea, "b d n1 n2 -> b (n1 n2) d") # [128, 196, 1024]
-        h = rearrange(res_fea, "b n d -> (b n) d") # [25088, 1024]
-        # batch_size,num,feature_size
-        # h = h.squeeze()
+        
         x = self.res_l1(h) # self.res_l1(h) # [*, 1024] -> [*, 1024]
         x = F.relu(x)
 
         x = self.res_l2(x) # self.res_l2(x) # [*, 1024] -> [*, 256]
-        out_emb = rearrange(x, "(b n) d -> b n d", b=batch_size)
-        return out_emb
+        return x
 
     def forward(
         self,
