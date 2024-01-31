@@ -90,8 +90,8 @@ def train(
         loss, loss_ce, loss_cl = model(
             images,
             labels,
-            index,
             matrix,
+            sample_index=index,
             is_train=True,
             no_cl=config["no_cl"],
             exclude_class=config["exclude_class"],
@@ -128,12 +128,14 @@ def valid(model, data_loader, epoch, device, config, writer):
         images = sample["image"].to(device)
         labels = sample["label"].to(device)
         index = sample["index"].to(device)
+        matrix = sample["matrix"].to(device)
 
         with torch.no_grad():
             loss, loss_ce, loss_cl = model(
                 images,
                 labels,
-                index,
+                matrix,
+                sample_index=index,
                 is_train=True,
                 no_cl=config["no_cl"],
                 exclude_class=config["exclude_class"],

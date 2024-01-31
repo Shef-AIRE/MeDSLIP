@@ -266,15 +266,16 @@ class MedKLIP(nn.Module):
         out = self.dropout_feas(features) # [75, 128, 256]
 
         if is_train == True and no_cl == False:
-            anatomy_query = torch.zeros_like([sample_index.shape[0],
+            anatomy_query = torch.zeros([sample_index.shape[0],
                                               sample_index.shape[1],
                                               sample_index.shape[2],
-                                              self.ana_book[-1]]).to(device) # [128, 75, 8, 768]
+                                              self.ana_book.shape[-1]]).to(device) # [128, 75, 8, 768]
             anatomy_query = self.ana_book[
-                sample_index[sample_index!=-1], :
-            ]  # batch, Q , position_num ,dim [128, 75, 8, 768]
+                sample_index, :
+            ] # * sample # batch, Q , position_num ,dim [128, 75, 8, 768]
+        
 
-            anatomy_query[sample_index==-1, :] = self.ana_book[, :] # [128, 75, 8, 768
+            # anatomy_query[sample_index==-1, :] = self.ana_book[, :] # [128, 75, 8, 768
             
 
             # [Q,B,A]
