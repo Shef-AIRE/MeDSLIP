@@ -160,6 +160,7 @@ cython_debug/
 #.idea/
 physionet.org/
 setting/
-
+*.pt
+*.pth
 runs/
 radgraph-extracting-clinical-entities-and-relations-from-radiology-reports-1.0.0/
