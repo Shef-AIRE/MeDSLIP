@@ -272,7 +272,21 @@ class MedKLIP(nn.Module):
                                               self.ana_book.shape[-1]]).to(device) # [128, 75, 8, 768]
             anatomy_query = self.ana_book[
                 sample_index, :
-            ] # * sample # batch, Q , position_num ,dim [128, 75, 8, 768]
+            ] * (sample_index!=-1).int().unsqueeze(-1).repeat(1, 1, 1, 768) # batch, Q , position_num ,dim [128, 75, 8, 768]
+            positive_index = torch.where(sample_index==-1)
+            matrix_zero = matrix
+            matrix_zero[matrix_zero<1] = 0
+            matrix_zero = matrix_zero.unsqueeze(3).repeat(1,1,1,anatomy_query.shape[-1])
+            ana_temp = self.ana_book
+            ana_temp = ana_temp.unsqueeze(0).repeat(anatomy_query.shape[0],1,1)
+            ana_temp = ana_temp.unsqueeze(2).repeat(1,1,anatomy_query.shape[1], 1)
+            anatomy_query[:,:,0,:] += (matrix_zero * ana_temp).mean(dim=1)
+            #  c
+            # for i in range(sample_index.shape[1]):
+            #     anatomy_query[positive_index[0][i],
+            #                   positive_index[1][i],
+            #                   positive_index[2][i], 
+            #                   :] = torch.zeros([768]).to(device)
         
 
             # anatomy_query[sample_index==-1, :] = self.ana_book[, :] # [128, 75, 8, 768
