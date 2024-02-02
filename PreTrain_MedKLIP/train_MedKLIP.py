@@ -83,14 +83,14 @@ def train(
         images = sample["image"].to(device) # [Batch, 3, 224, 224]
         labels = sample["label"].to(device) # [Batch, Disease]
         index = sample["index"].to(device) # [Batch, Disease, Position]
-        matrix = sample["matrix"].to(device) # [Batch, Disease]
+        # matrix = sample["matrix"].to(device) # [Batch, Disease]
 
         optimizer.zero_grad()
 
         loss, loss_ce, loss_cl = model(
             images,
             labels,
-            matrix,
+            # matrix,
             sample_index=index,
             is_train=True,
             no_cl=config["no_cl"],
@@ -128,13 +128,13 @@ def valid(model, data_loader, epoch, device, config, writer):
         images = sample["image"].to(device)
         labels = sample["label"].to(device)
         index = sample["index"].to(device)
-        matrix = sample["matrix"].to(device)
+        # matrix = sample["matrix"].to(device)
 
         with torch.no_grad():
             loss, loss_ce, loss_cl = model(
                 images,
                 labels,
-                matrix,
+                # matrix,
                 sample_index=index,
                 is_train=True,
                 no_cl=config["no_cl"],
