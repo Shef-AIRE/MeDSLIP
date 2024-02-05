@@ -24,7 +24,7 @@ class Chestxray14_Dataset(Dataset):
         # self.class_list = np.asarray(data_info.iloc[:,3:])
 
         self.img_path_list = np.asarray(data_info.iloc[:, 0])
-        self.class_list = np.asarray(data_info.iloc[:, 3:])
+        self.class_list = np.asarray(data_info.iloc[:, 2:])
 
         normalize = transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
         if is_train:
