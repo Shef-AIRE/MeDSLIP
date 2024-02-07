@@ -1,0 +1,76 @@
+Index: Sample_zero-shot_Classification_CXR14/models/model_MedKLIP.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+># modified from https://github.com/tensorflow/models/blob/master/research/slim/nets/s3dg.py\nfrom sklearn.metrics import log_loss\nimport torch.nn as nn\nimport torch\nimport math\nimport numpy as np\nfrom torch.nn.utils.rnn import pad_sequence\nimport torch.nn.functional as F\nfrom .transformer import *\nimport torchvision.models as models\nfrom einops import rearrange\nfrom transformers import AutoModel\n\n\"\"\"\nargs.N\nargs.d_model\nargs.res_base_model\nargs.H\nargs.num_queries\nargs.dropout\nargs.attribute_set_size\n\"\"\"\n\n\nclass MedKLIP(nn.Module):\n    def __init__(self, config, disease_book):\n        super(MedKLIP, self).__init__()\n\n        self.d_model = config[\"d_model\"]\n        # ''' book embedding'''\n        with torch.no_grad():\n            bert_model = self._get_bert_basemodel(\n                config[\"text_encoder\"], freeze_layers=None\n            ).to(disease_book[\"input_ids\"].device)\n            self.disease_book = bert_model(\n                input_ids=disease_book[\"input_ids\"],\n                attention_mask=disease_book[\"attention_mask\"],\n            )  # (**encoded_inputs)\n            self.disease_book = self.disease_book.last_hidden_state[:, 0, :]\n        self.disease_embedding_layer = nn.Linear(768, 256)\n        self.cl_fc = nn.Linear(256, 768)\n\n        \"\"\" visual backbone\"\"\"\n        self.resnet_dict = {\n            \"resnet18\": models.resnet18(pretrained=False),\n            \"resnet50\": models.resnet50(pretrained=False),\n        }\n        resnet = self._get_res_basemodel(config[\"res_base_model\"])\n        num_ftrs = int(resnet.fc.in_features / 2)\n        self.res_features = nn.Sequential(*list(resnet.children())[:-3])\n        self.res_l1 = nn.Linear(num_ftrs, num_ftrs)\n        self.res_l2 = nn.Linear(num_ftrs, self.d_model)\n\n        ###################################\n        \"\"\" Query Decoder\"\"\"\n        ###################################\n\n        self.H = config[\"H\"]\n        decoder_layer = TransformerDecoderLayer(\n            self.d_model, config[\"H\"], 1024, 0.1, \"relu\", normalize_before=True\n        )\n        decoder_norm = nn.LayerNorm(self.d_model)\n        self.decoder = TransformerDecoder(\n            decoder_layer, config[\"N\"], decoder_norm, return_intermediate=False\n        )\n\n        # Learnable Queries\n        self.dropout_feas = nn.Dropout(config[\"dropout\"])\n\n        # Attribute classifier\n        self.classifier = nn.Linear(self.d_model, config[\"attribute_set_size\"])\n\n        self.apply(self._init_weights)\n\n    def _get_res_basemodel(self, res_model_name):\n        try:\n            res_model = self.resnet_dict[res_model_name]\n            print(\"Image feature extractor:\", res_model_name)\n            return res_model\n        except:\n            raise (\n                \"Invalid model name. Check the config file and pass one of: resnet18 or resnet50\"\n            )\n\n    def _get_bert_basemodel(self, bert_model_name, freeze_layers):\n        try:\n            model = AutoModel.from_pretrained(bert_model_name)  # , return_dict=True)\n            print(\"text feature extractor:\", bert_model_name)\n        except:\n            raise (\n                \"Invalid model name. Check the config file and pass a BERT model from transformers lybrary\"\n            )\n\n        if freeze_layers is not None:\n            for layer_idx in freeze_layers:\n                for param in list(model.encoder.layer[layer_idx].parameters()):\n                    param.requires_grad = False\n        return model\n\n    def image_encoder(self, xis):\n        # patch features\n        \"\"\"\n        16 torch.Size([16, 1024, 14, 14])\n        torch.Size([16, 196, 1024])\n        torch.Size([3136, 1024])\n        torch.Size([16, 196, 256])\n        \"\"\"\n        batch_size = xis.shape[0]\n        res_fea = self.res_features(xis)  # batch_size,feature_size,patch_num,patch_num\n        res_fea = rearrange(res_fea, \"b d n1 n2 -> b (n1 n2) d\")\n        h = rearrange(res_fea, \"b n d -> (b n) d\")\n        # batch_size,num,feature_size\n        # h = h.squeeze()\n        x = self.res_l1(h)\n        x = F.relu(x)\n\n        x = self.res_l2(x)\n        out_emb = rearrange(x, \"(b n) d -> b n d\", b=batch_size)\n        return out_emb\n\n    def forward(self, images):\n        B = images.shape[0]\n\n        device = images.device\n        \"\"\" Visual Backbone \"\"\"\n        x = self.image_encoder(images)  # batch_size,patch_num,dim\n        features = x.transpose(0, 1)  # patch_num b dim\n\n        query_embed = self.disease_embedding_layer(self.disease_book)\n        query_embed = query_embed.unsqueeze(1).repeat(1, B, 1)\n        features, ws = self.decoder(\n            query_embed,\n            features,\n            memory_key_padding_mask=None,\n            pos=None,\n            query_pos=None,\n        )\n        out = self.dropout_feas(features)\n        x = self.classifier(out).transpose(0, 1)  # B query Atributes\n\n        return x\n\n    @staticmethod\n    def _init_weights(module):\n        r\"\"\"Initialize weights like BERT - N(0.0, 0.02), bias = 0.\"\"\"\n\n        if isinstance(module, nn.Linear):\n            module.weight.data.normal_(mean=0.0, std=0.02)\n\n        elif isinstance(module, nn.MultiheadAttention):\n            module.in_proj_weight.data.normal_(mean=0.0, std=0.02)\n            module.out_proj.weight.data.normal_(mean=0.0, std=0.02)\n\n        elif isinstance(module, nn.Embedding):\n            module.weight.data.normal_(mean=0.0, std=0.02)\n            if module.padding_idx is not None:\n                module.weight.data[module.padding_idx].zero_()\n
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/Sample_zero-shot_Classification_CXR14/models/model_MedKLIP.py b/Sample_zero-shot_Classification_CXR14/models/model_MedKLIP.py
+--- a/Sample_zero-shot_Classification_CXR14/models/model_MedKLIP.py	
++++ b/Sample_zero-shot_Classification_CXR14/models/model_MedKLIP.py	
+@@ -10,7 +10,7 @@
+ import torchvision.models as models
+ from einops import rearrange
+ from transformers import AutoModel
+-
++from models import PosiViT
+ """
+ args.N
+ args.d_model
+@@ -25,7 +25,8 @@
+ class MedKLIP(nn.Module):
+     def __init__(self, config, disease_book):
+         super(MedKLIP, self).__init__()
+-
++        image_encoder = 'PosiViT.vit_' + config['vit_encoder'] + '_patch' + str(config['patch_size']) + '_' + str(config['image_res'])
++        vit = eval(image_encoder)
+         self.d_model = config["d_model"]
+         # ''' book embedding'''
+         with torch.no_grad():
+@@ -41,12 +42,9 @@
+         self.cl_fc = nn.Linear(256, 768)
+ 
+         """ visual backbone"""
+-        self.resnet_dict = {
+-            "resnet18": models.resnet18(pretrained=False),
+-            "resnet50": models.resnet50(pretrained=False),
+-        }
+-        resnet = self._get_res_basemodel(config["res_base_model"])
+-        num_ftrs = int(resnet.fc.in_features / 2)
++        resnet = vit(reg_tokens=4, pretrained=False, num_classes=768) #self._get_res_basemodel(config["res_base_model"])
++
++        num_ftrs = int(resnet.head.in_features)
+         self.res_features = nn.Sequential(*list(resnet.children())[:-3])
+         self.res_l1 = nn.Linear(num_ftrs, num_ftrs)
+         self.res_l2 = nn.Linear(num_ftrs, self.d_model)
+@@ -98,25 +96,13 @@
+         return model
+ 
+     def image_encoder(self, xis):
+-        # patch features
+-        """
+-        16 torch.Size([16, 1024, 14, 14])
+-        torch.Size([16, 196, 1024])
+-        torch.Size([3136, 1024])
+-        torch.Size([16, 196, 256])
+-        """
+-        batch_size = xis.shape[0]
+-        res_fea = self.res_features(xis)  # batch_size,feature_size,patch_num,patch_num
+-        res_fea = rearrange(res_fea, "b d n1 n2 -> b (n1 n2) d")
+-        h = rearrange(res_fea, "b n d -> (b n) d")
+-        # batch_size,num,feature_size
+-        # h = h.squeeze()
+-        x = self.res_l1(h)
++        res_fea = self.res_features(xis)[:, 0, :].unsqueeze(1)  # batch_size,feature_size,patch_num,patch_num [128, 1024, 14, 14]
++        
++        x = self.res_l1(res_fea) # self.res_l1(h) # [*, 1024] -> [*, 1024]
+         x = F.relu(x)
+ 
+-        x = self.res_l2(x)
+-        out_emb = rearrange(x, "(b n) d -> b n d", b=batch_size)
+-        return out_emb
++        x = self.res_l2(x) # self.res_l2(x) # [*, 1024] -> [*, 256]
++        return x
+ 
+     def forward(self, images):
+         B = images.shape[0]
