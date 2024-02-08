@@ -26,6 +26,7 @@ class MedKLIP(nn.Module):
     def __init__(self, config, disease_book):
         super(MedKLIP, self).__init__()
 
+       
         self.d_model = config["d_model"]
         # ''' book embedding'''
         with torch.no_grad():
@@ -38,8 +39,10 @@ class MedKLIP(nn.Module):
             )  # (**encoded_inputs)
             self.disease_book = self.disease_book.last_hidden_state[:, 0, :]
         self.disease_embedding_layer = nn.Linear(768, 256)
-        self.cl_fc = nn.Linear(256, 768)
+        self.cl_fc_e = nn.Linear(256, 768)
+        self.cl_fc_p = nn.Linear(256, 768)
 
+        
         """ visual backbone"""
         self.resnet_dict = {
             "resnet18": models.resnet18(pretrained=False),
@@ -48,8 +51,13 @@ class MedKLIP(nn.Module):
         resnet = self._get_res_basemodel(config["res_base_model"])
         num_ftrs = int(resnet.fc.in_features / 2)
         self.res_features = nn.Sequential(*list(resnet.children())[:-3])
-        self.res_l1 = nn.Linear(num_ftrs, num_ftrs)
-        self.res_l2 = nn.Linear(num_ftrs, self.d_model)
+        self.res_l1_p = nn.Linear(num_ftrs, num_ftrs)
+        self.res_l2_p = nn.Linear(num_ftrs, self.d_model)
+        self.res_l1_e = nn.Linear(num_ftrs, num_ftrs)
+        self.res_l2_e = nn.Linear(num_ftrs, self.d_model)
+
+        self.mask_generator = nn.Linear(num_ftrs, num_ftrs)
+
 
         ###################################
         """ Query Decoder"""
@@ -60,15 +68,24 @@ class MedKLIP(nn.Module):
             self.d_model, config["H"], 1024, 0.1, "relu", normalize_before=True
         )
         decoder_norm = nn.LayerNorm(self.d_model)
-        self.decoder = TransformerDecoder(
+        self.decoder_p = TransformerDecoder(
+            decoder_layer, config["N"], decoder_norm, return_intermediate=False
+        )
+        self.decoder_e = TransformerDecoder(
             decoder_layer, config["N"], decoder_norm, return_intermediate=False
         )
 
         # Learnable Queries
-        self.dropout_feas = nn.Dropout(config["dropout"])
+        # self.query_embed = nn.Embedding(config['num_queries'] ,self.d_model)
+        self.dropout_feas_p = nn.Dropout(config["dropout"])
+        self.dropout_feas_e = nn.Dropout(config["dropout"])
 
         # Attribute classifier
-        self.classifier = nn.Linear(self.d_model, config["attribute_set_size"])
+        self.classifier_p = nn.Linear(self.d_model, config["attribute_set_size"])
+        self.classifier_e = nn.Linear(self.d_model, config["attribute_set_size"])
+
+        # # Class classifier
+        # self.cls_classifier = nn.Linear(self.d_model,args.num_classes)
 
         self.apply(self._init_weights)
 
@@ -108,35 +125,42 @@ class MedKLIP(nn.Module):
         batch_size = xis.shape[0]
         res_fea = self.res_features(xis)  # batch_size,feature_size,patch_num,patch_num
         res_fea = rearrange(res_fea, "b d n1 n2 -> b (n1 n2) d")
-        h = rearrange(res_fea, "b n d -> (b n) d")
+        x = rearrange(res_fea, "b n d -> (b n) d")
+        x_e = self.mask_generator(x) * x
+        x_p = (1 - self.mask_generator(x)) * x
         # batch_size,num,feature_size
         # h = h.squeeze()
-        x = self.res_l1(h)
-        x = F.relu(x)
+        x_e = self.res_l1_e(x_e)
+        x_p = self.res_l1_p(x_p)
+        x_e = F.relu(x_e)
+        x_p = F.relu(x_p)
 
-        x = self.res_l2(x)
-        out_emb = rearrange(x, "(b n) d -> b n d", b=batch_size)
-        return out_emb
+        x_e = self.res_l2_e(x_e)
+        x_p = self.res_l2_p(x_p)
+
+        out_emb_e = rearrange(x_e, "(b n) d -> b n d", b=batch_size)
+        out_emb_p = rearrange(x_p, "(b n) d -> b n d", b=batch_size)
+        return out_emb_e, out_emb_p
 
     def forward(self, images):
         B = images.shape[0]
 
         device = images.device
         """ Visual Backbone """
-        x = self.image_encoder(images)  # batch_size,patch_num,dim
+        x, _ = self.image_encoder(images)  # batch_size,patch_num,dim
         features = x.transpose(0, 1)  # patch_num b dim
 
         query_embed = self.disease_embedding_layer(self.disease_book)
         query_embed = query_embed.unsqueeze(1).repeat(1, B, 1)
-        features, ws = self.decoder(
+        features, ws = self.decoder_e(
             query_embed,
             features,
             memory_key_padding_mask=None,
             pos=None,
             query_pos=None,
         )
-        out = self.dropout_feas(features)
-        x = self.classifier(out).transpose(0, 1)  # B query Atributes
+        out = self.dropout_feas_e(features)
+        x = self.classifier_e(out).transpose(0, 1)  # B query Atributes
 
         return x
 

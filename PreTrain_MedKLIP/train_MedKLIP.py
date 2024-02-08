@@ -60,14 +60,26 @@ def train(
         "loss", utils.SmoothedValue(window_size=50, fmt="{value:.6f}")
     )
     metric_logger.add_meter(
-        "loss_ce", utils.SmoothedValue(window_size=50, fmt="{value:.6f}")
+        "loss_ce_e", utils.SmoothedValue(window_size=50, fmt="{value:.6f}")
     )
     metric_logger.add_meter(
-        "loss_cl", utils.SmoothedValue(window_size=50, fmt="{value:.6f}")
+        "loss_cl_e", utils.SmoothedValue(window_size=50, fmt="{value:.6f}")
+    )
+    metric_logger.add_meter(
+        "loss_ce_p", utils.SmoothedValue(window_size=50, fmt="{value:.6f}")
+    )
+    metric_logger.add_meter(
+        "loss_cl_p", utils.SmoothedValue(window_size=50, fmt="{value:.6f}")
+    )
+    metric_logger.add_meter(
+        "loss_pe", utils.SmoothedValue(window_size=50, fmt="{value:.6f}")
     )
     metric_logger.update(loss=1.0)
-    metric_logger.update(loss_ce=1.0)
-    metric_logger.update(loss_cl=1.0)
+    metric_logger.update(loss_ce_e=1.0)
+    metric_logger.update(loss_cl_e=1.0)
+    metric_logger.update(loss_ce_p=1.0)
+    metric_logger.update(loss_cl_p=1.0)
+    metric_logger.update(loss_pe=1.0)
     metric_logger.update(lr=scheduler._get_lr(epoch)[0])
 
     header = "Train Epoch: [{}]".format(epoch)
@@ -81,17 +93,21 @@ def train(
     ):
 
         images = sample["image"].to(device)
-        labels = sample["label"].to(device)
-        index = sample["index"].to(device)
+        labels_e = sample["label_e"].to(device)
+        labels_p = sample["label_p"].to(device)
+        index_e = sample["index_e"].to(device)
+        index_p = sample["index_p"].to(device)
         matrix = sample["matrix"].to(device)
 
         optimizer.zero_grad()
 
-        loss, loss_ce, loss_cl = model(
+        loss, loss_ce_e, loss_cl_e, loss_ce_p, loss_cl_p, loss_pe = model(
             images,
-            labels,
-            matrix,
-            sample_index=index,
+            labels_e=labels_e,
+            labels_p=labels_p,
+            matrix=matrix,
+            sample_index_e=index_e,
+            sample_index_p=index_p,
             is_train=True,
             no_cl=config["no_cl"],
             exclude_class=config["exclude_class"],
@@ -99,12 +115,19 @@ def train(
         loss.backward()
         optimizer.step()
         writer.add_scalar("loss/loss", loss, scalar_step)
-        writer.add_scalar("loss/loss_ce", loss_ce, scalar_step)
-        writer.add_scalar("loss/loss_cl", loss_cl, scalar_step)
+        writer.add_scalar("loss/loss_ce_e", loss_ce_e, scalar_step)
+        writer.add_scalar("loss/loss_cl_e", loss_cl_e, scalar_step)
+        writer.add_scalar("loss/loss_ce_p", loss_ce_p, scalar_step)
+        writer.add_scalar("loss/loss_cl_p", loss_cl_p, scalar_step)
+        writer.add_scalar("loss/loss_pe", loss_pe, scalar_step)
         scalar_step += 1
-        metric_logger.update(loss_ce=loss_ce.item())
+        metric_logger.update(loss_ce_e=loss_ce_e.item())
+        metric_logger.update(loss_cl_e=loss_cl_e.item())
+        metric_logger.update(loss_ce_p=loss_ce_p.item())
+        metric_logger.update(loss_cl_p=loss_cl_p.item())
+        metric_logger.update(loss_pe=loss_pe.item())
         metric_logger.update(loss=loss.item())
-        metric_logger.update(loss_cl=loss_cl.item())
+        # metric_logger.update(loss_cl=loss_cl.item())
         if epoch == 0 and i % step_size == 0 and i <= warmup_iterations:
             scheduler.step(i // step_size)
         metric_logger.update(lr=scheduler._get_lr(epoch)[0])
@@ -126,25 +149,31 @@ def valid(model, data_loader, epoch, device, config, writer):
     for i, sample in enumerate(data_loader):
 
         images = sample["image"].to(device)
-        labels = sample["label"].to(device)
-        index = sample["index"].to(device)
+        labels_e = sample["label_e"].to(device)
+        labels_p = sample["label_p"].to(device)
+        index_e = sample["index_e"].to(device)
+        index_p = sample["index_p"].to(device)
         matrix = sample["matrix"].to(device)
 
         with torch.no_grad():
-            loss, loss_ce, loss_cl = model(
+            loss, loss_ce_e, loss_cl_e, loss_ce_p, loss_cl_p, loss_pe = model(
                 images,
-                labels,
-                matrix,
-                sample_index=index,
-                
+                labels_e=labels_e,
+                labels_p=labels_p,
+                matrix=matrix,
+                sample_index_e=index_e,
+                sample_index_p=index_p,
                 is_train=True,
                 no_cl=config["no_cl"],
                 exclude_class=config["exclude_class"],
             )
             val_loss.append(loss.item())
             writer.add_scalar("val_loss/loss", loss, val_scalar_step)
-            writer.add_scalar("val_loss/loss_ce", loss_ce, val_scalar_step)
-            writer.add_scalar("val_loss/loss_cl", loss_cl, val_scalar_step)
+            writer.add_scalar("val_loss/loss_ce_e", loss_ce_e, val_scalar_step)
+            writer.add_scalar("val_loss/loss_cl_e", loss_cl_e, val_scalar_step)
+            writer.add_scalar("val_loss/loss_ce_p", loss_ce_p, val_scalar_step)
+            writer.add_scalar("val_loss/loss_cl_p", loss_cl_p, val_scalar_step)
+            writer.add_scalar("val_loss/loss_pe", loss_pe, val_scalar_step)
             val_scalar_step += 1
     avg_val_loss = np.array(val_loss).mean()
     return avg_val_loss
@@ -320,7 +349,7 @@ def main(args, config):
             with open(os.path.join(args.output_dir, "log.txt"), "a") as f:
                 f.write(json.dumps(log_stats) + "\n")
 
-        if epoch % 20 == 1 and epoch > 1:
+        if epoch % 10 == 0:
             save_obj = {
                 "model": model.state_dict(),
                 "optimizer": optimizer.state_dict(),
@@ -342,7 +371,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="PreTrain_MedKLIP/configs/Pretrain_MedKLIP.yaml")
     parser.add_argument("--checkpoint", default="")
-    parser.add_argument("--output_dir", default="runs/resnet_pcl")
+    parser.add_argument("--output_dir", default="runs/dual_stream")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--gpu", type=str, default="0", help="gpu")
     args = parser.parse_args()

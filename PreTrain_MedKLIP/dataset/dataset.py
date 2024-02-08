@@ -192,21 +192,26 @@ class MedKLIP_Dataset(Dataset):
         class_label = self.rad_graph_results[
             self.ann[img_path]["labels_id"], :, :
         ]  # (51, 75)
-        labels = np.zeros(class_label.shape[-1]) - 1
-        labels, index_list = self.triplet_extraction(class_label)
-        index_list = np.array(index_list)
+        labels_e = np.zeros(class_label.shape[-1]) - 1
+        labels_p = np.zeros(class_label.shape[0]) - 1
+        labels_e, index_list_e = self.triplet_extraction_e(class_label)
+        labels_p, index_list_p = self.triplet_extraction_p(class_label)
+        index_list_e = np.array(index_list_e)
+        index_list_p = np.array(index_list_p)
 
         img = PIL.Image.open(img_path).convert("RGB")
         image = self.transform(img)
 
         return {
             "image": image,
-            "label": labels,
-            "index": index_list,
+            "label_e": labels_e,
+            "index_e": index_list_e,
+            "label_p": labels_p,
+            "index_p": index_list_p,
             "matrix": class_label,
         }
 
-    def triplet_extraction(self, class_label):
+    def triplet_extraction_e(self, class_label):
         exist_labels = np.zeros(class_label.shape[-1]) - 1
         position_list = []
         # positive_list = np.zeros([class_label.shape[1], class_label.shape[0]]) - 1
@@ -241,6 +246,42 @@ class MedKLIP_Dataset(Dataset):
             position_list.append(temp_list)
 
         return exist_labels, position_list
+    
+    def triplet_extraction_p(self, class_label):
+        exist_labels = np.zeros(class_label.shape[0]) - 1
+        entity_list = []
+        # positive_list = np.zeros([class_label.shape[1], class_label.shape[0]]) - 1
+        for i in range(class_label.shape[0]):
+            temp_list = []
+            # positive_list[i] = np.zeros(class_label.shape[1]) - 1
+            ### extract the exist label for each entity and maintain -1 if not mentioned. ###
+            if 0 in class_label[i, :]:
+                exist_labels[i] = 0
+
+            if 1 in class_label[i, :]:
+                exist_labels[i] = 1
+                ### if the entity exists try to get its position.###
+                ### Note that, the contrastive loss will only be caculated on exist entity as it is meaningless to predict their position for the non-exist entities###
+                temp_list.append(-1)
+
+                # positive_list[i, np.unique(np.where(class_label[:, i] == 1)).tolist()] = 1
+
+                try:
+                    temp_list = temp_list + random.sample(
+                        np.where(class_label[i, :] != 1)[0].tolist(),
+                        self.num_neg_samples,
+                    )
+                except:
+                    print("fatal error")
+            if temp_list == []:
+                temp_list = temp_list + random.sample(
+                    np.where(class_label[i, :] != 1)[0].tolist(),
+                    self.num_neg_samples + 1,
+                )
+                # positive_list.append()
+            entity_list.append(temp_list)
+
+        return exist_labels, entity_list
 
     def __len__(self):
         return len(self.ann)

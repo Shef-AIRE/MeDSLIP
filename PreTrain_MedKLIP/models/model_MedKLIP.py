@@ -23,9 +23,9 @@ args.attribute_set_size
 
 
 class MedKLIP(nn.Module):
-    def __init__(self, config, ana_book, disease_book, mode="train"):
+    def __init__(self, config, ana_book, disease_book, mode="train", use_pe_cl=True):
         super(MedKLIP, self).__init__()
-
+        self.use_pe_cl = use_pe_cl
         self.mode = mode
         self.d_model = config["d_model"]
         # ''' book embedding'''
@@ -44,7 +44,8 @@ class MedKLIP(nn.Module):
             )  # (**encoded_inputs)
             self.disease_book = self.disease_book.last_hidden_state[:, 0, :]
         self.disease_embedding_layer = nn.Linear(768, 256)
-        self.cl_fc = nn.Linear(256, 768)
+        self.cl_fc_e = nn.Linear(256, 768)
+        self.cl_fc_p = nn.Linear(256, 768)
 
         self.disease_name = [
             "normal",
@@ -97,7 +98,7 @@ class MedKLIP(nn.Module):
             "blunt",
             "loss",
             "widen",
-            "collapse",
+            "coll_eapse",
             "density",
             "emphysema",
             "aerate",
@@ -135,7 +136,7 @@ class MedKLIP(nn.Module):
             "hernia",
         ]
 
-        self.keep_class_dim = [
+        self.keep_class_dim_e = [
             self.disease_name.index(i)
             for i in self.disease_name
             if i not in self.excluded_disease
@@ -148,8 +149,13 @@ class MedKLIP(nn.Module):
         resnet = self._get_res_basemodel(config["res_base_model"])
         num_ftrs = int(resnet.fc.in_features / 2)
         self.res_features = nn.Sequential(*list(resnet.children())[:-3])
-        self.res_l1 = nn.Linear(num_ftrs, num_ftrs)
-        self.res_l2 = nn.Linear(num_ftrs, self.d_model)
+        self.res_l1_p = nn.Linear(num_ftrs, num_ftrs)
+        self.res_l2_p = nn.Linear(num_ftrs, self.d_model)
+        self.res_l1_e = nn.Linear(num_ftrs, num_ftrs)
+        self.res_l2_e = nn.Linear(num_ftrs, self.d_model)
+
+        self.mask_generator = nn.Linear(num_ftrs, num_ftrs)
+
 
         ###################################
         """ Query Decoder"""
@@ -160,16 +166,21 @@ class MedKLIP(nn.Module):
             self.d_model, config["H"], 1024, 0.1, "relu", normalize_before=True
         )
         decoder_norm = nn.LayerNorm(self.d_model)
-        self.decoder = TransformerDecoder(
+        self.decoder_p = TransformerDecoder(
+            decoder_layer, config["N"], decoder_norm, return_intermediate=False
+        )
+        self.decoder_e = TransformerDecoder(
             decoder_layer, config["N"], decoder_norm, return_intermediate=False
         )
 
         # Learnable Queries
         # self.query_embed = nn.Embedding(config['num_queries'] ,self.d_model)
-        self.dropout_feas = nn.Dropout(config["dropout"])
+        self.dropout_feas_p = nn.Dropout(config["dropout"])
+        self.dropout_feas_e = nn.Dropout(config["dropout"])
 
         # Attribute classifier
-        self.classifier = nn.Linear(self.d_model, config["attribute_set_size"])
+        self.classifier_p = nn.Linear(self.d_model, config["attribute_set_size"])
+        self.classifier_e = nn.Linear(self.d_model, config["attribute_set_size"])
 
         # # Class classifier
         # self.cls_classifier = nn.Linear(self.d_model,args.num_classes)
@@ -212,135 +223,249 @@ class MedKLIP(nn.Module):
         batch_size = xis.shape[0]
         res_fea = self.res_features(xis)  # batch_size,feature_size,patch_num,patch_num
         res_fea = rearrange(res_fea, "b d n1 n2 -> b (n1 n2) d")
-        h = rearrange(res_fea, "b n d -> (b n) d")
+        x = rearrange(res_fea, "b n d -> (b n) d")
+        x_e = self.mask_generator(x) * x
+        x_p = (1 - self.mask_generator(x)) * x
         # batch_size,num,feature_size
         # h = h.squeeze()
-        x = self.res_l1(h)
-        x = F.relu(x)
+        x_e = self.res_l1_e(x_e)
+        x_p = self.res_l1_p(x_p)
+        x_e = F.relu(x_e)
+        x_p = F.relu(x_p)
 
-        x = self.res_l2(x)
-        out_emb = rearrange(x, "(b n) d -> b n d", b=batch_size)
-        return out_emb
+        x_e = self.res_l2_e(x_e)
+        x_p = self.res_l2_p(x_p)
+
+        out_emb_e = rearrange(x_e, "(b n) d -> b n d", b=batch_size)
+        out_emb_p = rearrange(x_p, "(b n) d -> b n d", b=batch_size)
+        return out_emb_e, out_emb_p
 
     def forward(
         self,
         images,
-        labels,
-        matrix,
-        sample_index=None,
+        labels_e = None,
+        labels_p = None,
+        matrix=None,
+        sample_index_e=None,
+        sample_index_p=None,
         is_train=True,
         no_cl=False,
         exclude_class=False,
     ):
 
-        # labels batch,51,75 binary_label batch,75 sample_index batch,index
+        # labels batch,51,75 binary_label batch,75 sample_index_e batch,index
         B = images.shape[0]
         device = images.device
         """ Visual Backbone """
-        x = self.image_encoder(images)  # batch_size,patch_num,dim
+        x_e, x_p = self.image_encoder(images)  # batch_size,patch_num,dim
+        
 
-        features = x.transpose(0, 1)  # patch_num b dim
+
+        features_e = x_e.transpose(0, 1)  # patch_num b dim
+        features_p = x_p.transpose(0, 1)  # patch_num b dim
         # query_embed = self.query_embed.weight.unsqueeze(1).repeat(1, B, 1) # query_number, batch, dim
-        query_embed = self.disease_embedding_layer(self.disease_book)
-        query_embed = query_embed.unsqueeze(1).repeat(1, B, 1)
-        features, ws = self.decoder(
-            query_embed,
-            features,
+        query_embed_e = self.disease_embedding_layer(self.disease_book)
+        query_embed_p = self.disease_embedding_layer(self.ana_book)
+        query_embed_e = query_embed_e.unsqueeze(1).repeat(1, B, 1)
+        query_embed_p = query_embed_p.unsqueeze(1).repeat(1, B, 1)
+        features_e, ws_e = self.decoder_e(
+            query_embed_e,
+            features_e,
             memory_key_padding_mask=None,
             pos=None,
             query_pos=None,
         )
-        out = self.dropout_feas(features)
+        features_p, ws_p = self.decoder_p(
+            query_embed_p,
+            features_p,
+            memory_key_padding_mask=None,
+            pos=None,
+            query_pos=None,
+        )
+        if self.use_pe_cl:
+
+            pe_logits = torch.bmm(features_e.transpose(0, 1), features_p.transpose(0, 1).transpose(1, 2)).transpose(1, 2) # B, 51, 75
+            matrix_zero = matrix
+            matrix_zero[matrix_zero < 1] = 0
+            pe_logits = pe_logits.reshape(pe_logits.shape[0]*pe_logits.shape[1]*pe_logits.shape[2], -1)
+            matrix_zero = matrix_zero.reshape(matrix_zero.shape[0]*matrix_zero.shape[1]*matrix_zero.shape[2], -1)
+            # pe_logits = F.normalize(pe_logits)
+            loss_pe = F.binary_cross_entropy_with_logits(pe_logits.float(), matrix_zero.float())
+        else:
+            loss_pe = torch.tensor(0)
+
+        out_e = self.dropout_feas_e(features_e)
+        out_p = self.dropout_feas_p(features_p)
+        
+        # out = self.dropout_feas(features)
         if is_train == True and no_cl == False:
 
             # get anatomy query
             anatomy_query = torch.zeros(
                 [
-                    sample_index.shape[0],
-                    sample_index.shape[1],
-                    sample_index.shape[2],
+                    sample_index_e.shape[0],
+                    sample_index_e.shape[1],
+                    sample_index_e.shape[2],
                     self.ana_book.shape[-1],
                 ]
             ).to(
                 device
             )  # [128, 75, 8, 768]
-            anatomy_query = self.ana_book[sample_index, :] * (
-                sample_index != -1
-            ).int().unsqueeze(-1).repeat(
-                1, 1, 1, 768
-            )  # batch, Q , position_num ,dim [128, 75, 8, 768]
-            positive_index = torch.where(sample_index == -1)
-            matrix_zero = matrix
-            matrix_zero[matrix_zero < 1] = 0
-            matrix_zero = matrix_zero.unsqueeze(3).repeat(
+            entity_query = torch.zeros(
+                [
+                    sample_index_p.shape[0],
+                    sample_index_p.shape[1],
+                    sample_index_p.shape[2],
+                    self.disease_book.shape[-1],
+                ]
+            ).to(device)
+
+            anatomy_query = self.ana_book[sample_index_e, :] * (
+                sample_index_e != -1
+            ).int().unsqueeze(-1).repeat(1, 1, 1, 768)  # batch, Q , position_num ,dim [128, 75, 8, 768]
+            entity_query = self.disease_book[sample_index_p, :] * (
+                sample_index_p != -1
+            ).int().unsqueeze(-1).repeat(1, 1, 1, 768)
+
+            # positive_index_e = torch.where(sample_index_e == -1)
+            # positive_index_p = torch.where(sample_index_p == -1)
+
+            matrix_zero_e = matrix
+            matrix_zero_p = matrix.transpose(1, 2)
+            matrix_zero_e[matrix_zero_e < 1] = 0
+            matrix_zero_p[matrix_zero_p < 1] = 0
+            matrix_zero_e = matrix_zero_e.unsqueeze(3).repeat(
                 1, 1, 1, anatomy_query.shape[-1]
             )
+            matrix_zero_p = matrix_zero_p.unsqueeze(3).repeat(
+                1, 1, 1, entity_query.shape[-1]
+            )
+
             ana_temp = self.ana_book
+            dis_temp = self.disease_book
             ana_temp = ana_temp.unsqueeze(0).repeat(anatomy_query.shape[0], 1, 1)
+            dis_temp = dis_temp.unsqueeze(0).repeat(entity_query.shape[0], 1, 1)
             ana_temp = ana_temp.unsqueeze(2).repeat(1, 1, anatomy_query.shape[1], 1)
-            posi_matrix = (matrix_zero * ana_temp).transpose(1, 2)
+            dis_temp = dis_temp.unsqueeze(2).repeat(1, 1, entity_query.shape[1], 1)
+
+            posi_matrix_e = (matrix_zero_e * ana_temp).transpose(1, 2)
+            posi_matrix_p = (matrix_zero_p * dis_temp).transpose(1, 2)
 
             for i in range(anatomy_query.shape[0]):
                 for j in range(anatomy_query.shape[1]):
-                    if (posi_matrix[i, j] != 0).sum() > 0:
+                    if (posi_matrix_e[i, j] != 0).sum() > 0:
                         num_posi = (
-                            torch.nonzero(posi_matrix[i, j], as_tuple=True)[0]
+                            torch.nonzero(posi_matrix_e[i, j], as_tuple=True)[0]
                             .unique()
                             .shape[0]
                         )
                         assert anatomy_query[i, j, 0, :].sum() == 0
                         anatomy_query[i, j, 0, :] = (
-                            posi_matrix[i, j, :, :].sum(dim=0) / num_posi
+                            posi_matrix_e[i, j, :, :].sum(dim=0) / num_posi
+                        )
+            
+            for i in range(entity_query.shape[0]):
+                for j in range(entity_query.shape[1]):
+                    if (posi_matrix_p[i, j] != 0).sum() > 0:
+                        num_posi = (
+                            torch.nonzero(posi_matrix_p[i, j], as_tuple=True)[0]
+                            .unique()
+                            .shape[0]
+                        )
+                        assert entity_query[i, j, 0, :].sum() == 0
+                        entity_query[i, j, 0, :] = (
+                            posi_matrix_p[i, j, :, :].sum(dim=0) / num_posi
                         )
             # Got anatomy query
 
             # [Q,B,A]
-            ll = out.transpose(0, 1)  # B Q A
-            Q = ll.shape[1]
-            ll = ll.reshape(ll.shape[0] * ll.shape[1], -1)
-            ll = self.cl_fc(ll)
-            ll = ll.unsqueeze(dim=-1)
-            # ll = ll.reshape(B,Q,-1)
-            anatomy_query = anatomy_query.reshape(B * Q, 8, 768)
-            ll = torch.bmm(anatomy_query, ll).squeeze()  # B Q position_num
-            cl_labels = torch.zeros((ll.shape[0])).to(device)
-            if exclude_class == True:
-                cl_labels = cl_labels.reshape(B, Q)
-                cl_labels = cl_labels[:, self.keep_class_dim]
-                cl_labels = cl_labels.reshape(-1)
-                ll = ll.reshape(B, Q, -1)
-                ll = ll[:, self.keep_class_dim, :]
-                ll = ll.reshape(B * (len(self.keep_class_dim)), -1)
+            ll_e = out_e.transpose(0, 1)  # B Q A
+            ll_p = out_p.transpose(0, 1)  # B Q A
 
-        x = self.classifier(out).transpose(0, 1)  # B query Atributes
+            Q_e = ll_e.shape[1]
+            Q_p = ll_p.shape[1]
+
+            ll_e = ll_e.reshape(ll_e.shape[0] * ll_e.shape[1], -1)
+            ll_p = ll_p.reshape(ll_p.shape[0] * ll_p.shape[1], -1)
+
+            ll_e = self.cl_fc_e(ll_e)
+            ll_p = self.cl_fc_p(ll_p)
+
+            ll_e = ll_e.unsqueeze(dim=-1)
+            ll_p = ll_p.unsqueeze(dim=-1)
+
+            anatomy_query = anatomy_query.reshape(B * Q_e, 8, 768)
+            entity_query = entity_query.reshape(B * Q_p, 8, 768)
+
+            ll_e = torch.bmm(anatomy_query, ll_e).squeeze()  # B Q position_num
+            ll_p = torch.bmm(entity_query, ll_p).squeeze()  # B Q position_num
+
+            cl_labels_e = torch.zeros((ll_e.shape[0])).to(device)
+            cl_labels_p = torch.zeros((ll_p.shape[0])).to(device)
+
+            if exclude_class == True:
+                cl_labels_e = cl_labels_e.reshape(B, Q_e)
+                cl_labels_p = cl_labels_p.reshape(B, Q_p)
+
+                cl_labels_e = cl_labels_e[:, self.keep_class_dim_e]
+                cl_labels_p = cl_labels_p[:, self.keep_class_dim_e]
+
+                cl_labels_e = cl_labels_e.reshape(-1)
+                cl_labels_p = cl_labels_p.reshape(-1)
+
+                ll_e = ll_e.reshape(B, Q_e, -1)
+                ll_p = ll_p.reshape(B, Q_p, -1)
+
+                ll_e = ll_e[:, self.keep_class_dim_e, :]
+                ll_e = ll_e.reshape(B * (len(self.keep_class_dim_e)), -1)
+                ll_p = ll_p.reshape(B * Q_p, -1)
+        
+        if self.use_pe_cl:
+            pe_logits_ = torch.bmm
+
+
+        x_e = self.classifier_e(out_e).transpose(0, 1)  # []
+        x_p = self.classifier_p(out_p).transpose(0, 1)  # B query Atributes
 
         if exclude_class == True:
-            labels = labels[:, self.keep_class_dim]
-            x = x[:, self.keep_class_dim, :]
+            labels_e = labels_e[:, self.keep_class_dim_e]
+            x_e = x_e[:, self.keep_class_dim_e, :]
 
-        labels = labels.reshape(-1, 1)
-        logits = x.reshape(-1, x.shape[-1])
-        Mask = ((labels != -1) & (labels != 2)).squeeze()
+        labels_e = labels_e.reshape(-1, 1)
+        labels_p = labels_p.reshape(-1, 1)
+        logits_e = x_e.reshape(-1, x_e.shape[-1])
+        logits_p = x_p.reshape(-1, x_p.shape[-1])
+        Mask_e = ((labels_e != -1) & (labels_e != 2)).squeeze()
+        Mask_p = ((labels_p != -1) & (labels_p != 2)).squeeze()
 
-        cl_mask = (labels == 1).squeeze()
+        cl_mask_e = (labels_e == 1).squeeze()
+        cl_mask_p = (labels_p == 1).squeeze()
         if is_train == True:
-            labels = labels[Mask].long()
-            logits = logits[Mask]
-            loss_ce = F.cross_entropy(logits, labels[:, 0])
+            labels_e = labels_e[Mask_e].long()
+            labels_p = labels_p[Mask_p].long()
+            logits_e = logits_e[Mask_e]
+            logits_p = logits_p[Mask_p]
+            loss_ce_e = F.cross_entropy(logits_e, labels_e[:, 0])
+            loss_ce_p = F.cross_entropy(logits_p, labels_p[:, 0])
             if no_cl == False:
-                cl_labels = cl_labels[cl_mask].long()
-                ll = ll[cl_mask]
-                loss_cl = F.cross_entropy(ll, cl_labels)
-                loss = loss_ce + loss_cl
+                cl_labels_e = cl_labels_e[cl_mask_e].long()
+                cl_labels_p = cl_labels_p[cl_mask_p].long()
+                ll_e = ll_e[cl_mask_e]
+                ll_p = ll_p[cl_mask_p]
+                loss_cl_e = F.cross_entropy(ll_e, cl_labels_e)
+                loss_cl_p = F.cross_entropy(ll_p, cl_labels_p)
+                loss_ce = loss_ce_e + loss_ce_p
+                loss_cl = loss_cl_e + loss_cl_p
+                loss = loss_ce + loss_cl + loss_pe
             else:
                 loss_cl = torch.tensor(0)
-                loss = loss_ce
+                loss = loss_ce_e + loss_ce_p + loss_pe
         else:
             loss = 0
         if is_train == True:
-            return loss, loss_ce, loss_cl
+            return loss, loss_ce_e, loss_cl_e, loss_ce_p, loss_cl_p, loss_pe
         else:
-            return loss, x, ws
+            return loss, x_e, ws_e, x_p, ws_p
 
     @staticmethod
     def _init_weights(module):
