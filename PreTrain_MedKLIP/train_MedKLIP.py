@@ -197,7 +197,7 @@ def main(args, config):
     train_dataloader = DataLoader(
         train_datasets,
         batch_size=config["batch_size"],
-        num_workers=20,
+        num_workers=30,
         pin_memory=True,
         sampler=None,
         shuffle=True,
@@ -211,7 +211,7 @@ def main(args, config):
     val_dataloader = DataLoader(
         val_datasets,
         batch_size=config["batch_size"],
-        num_workers=20,
+        num_workers=30,
         pin_memory=True,
         sampler=None,
         shuffle=True,

@@ -167,7 +167,7 @@ def test(args, config):
     test_dataloader = DataLoader(
         test_dataset,
         batch_size=config["test_batch_size"],
-        num_workers=4,
+        num_workers=8,
         pin_memory=True,
         sampler=None,
         shuffle=True,
@@ -245,7 +245,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="Sample_zero-shot_Classification_CXR14/configs/MedKLIP_config.yaml")
     
-    parser.add_argument("--model_path", default="/home/wenrui/Projects/MIMIC/MedKLIP/runs/resnet_pcl/2024-02-04_22-13-41/checkpoint_state.pth")
+    parser.add_argument("--model_path", default="/home/wenrui/Projects/MIMIC/MedKLIP/runs/dual_stream/2024-02-10_17-58-56/checkpoint_state.pth")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--gpu", type=str, default="0", help="gpu")
     args = parser.parse_args()

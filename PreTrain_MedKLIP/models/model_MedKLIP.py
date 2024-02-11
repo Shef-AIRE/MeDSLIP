@@ -47,6 +47,12 @@ class MedKLIP(nn.Module):
         self.cl_fc_e = nn.Linear(256, 768)
         self.cl_fc_p = nn.Linear(256, 768)
 
+        self.pe_fc_e = nn.Linear(256, 768)
+        self.pe_fc_p = nn.Linear(256, 768)
+
+        self.pe_fc_e_ = nn.Linear(256, 768)
+        self.pe_fc_p_ = nn.Linear(256, 768)
+
         self.disease_name = [
             "normal",
             "clear",
@@ -154,7 +160,7 @@ class MedKLIP(nn.Module):
         self.res_l1_e = nn.Linear(num_ftrs, num_ftrs)
         self.res_l2_e = nn.Linear(num_ftrs, self.d_model)
 
-        self.mask_generator = nn.Linear(num_ftrs, num_ftrs)
+        self.mask_generator = nn.Linear(num_ftrs, num_ftrs * 2)
 
 
         ###################################
@@ -224,8 +230,9 @@ class MedKLIP(nn.Module):
         res_fea = self.res_features(xis)  # batch_size,feature_size,patch_num,patch_num
         res_fea = rearrange(res_fea, "b d n1 n2 -> b (n1 n2) d")
         x = rearrange(res_fea, "b n d -> (b n) d")
-        x_e = self.mask_generator(x) * x
-        x_p = (1 - self.mask_generator(x)) * x
+        x = self.mask_generator(x)
+        x_e = x[:, 0:int(x.shape[1] / 2)]
+        x_p = x[:, int(x.shape[1] / 2):]
         # batch_size,num,feature_size
         # h = h.squeeze()
         x_e = self.res_l1_e(x_e)
@@ -283,12 +290,17 @@ class MedKLIP(nn.Module):
             query_pos=None,
         )
         if self.use_pe_cl:
+            pe_e = self.pe_fc_e(features_e)
+            pe_p = self.pe_fc_p(features_p)
 
-            pe_logits = torch.bmm(features_e.transpose(0, 1), features_p.transpose(0, 1).transpose(1, 2)).transpose(1, 2) # B, 51, 75
+            pe_logits = torch.bmm(pe_e.transpose(0, 1), pe_p.transpose(0, 1).transpose(1, 2)).transpose(1, 2) # B, 51, 75
             matrix_zero = matrix
-            matrix_zero[matrix_zero < 1] = 0
-            pe_logits = pe_logits.reshape(pe_logits.shape[0]*pe_logits.shape[1]*pe_logits.shape[2], -1)
-            matrix_zero = matrix_zero.reshape(matrix_zero.shape[0]*matrix_zero.shape[1]*matrix_zero.shape[2], -1)
+            masks = (matrix_zero >=0)
+            # matrix_zero[matrix_zero < 1] = 0
+            pe_logits = pe_logits[masks]
+            matrix_zero = matrix_zero[masks]
+            # pe_logits = pe_logits.reshape(pe_logits.shape[0]*pe_logits.shape[1]*pe_logits.shape[2], -1)
+            # matrix_zero = matrix_zero.reshape(matrix_zero.shape[0]*matrix_zero.shape[1]*matrix_zero.shape[2], -1)
             # pe_logits = F.normalize(pe_logits)
             loss_pe = F.binary_cross_entropy_with_logits(pe_logits.float(), matrix_zero.float())
         else:
@@ -420,9 +432,14 @@ class MedKLIP(nn.Module):
                 ll_e = ll_e.reshape(B * (len(self.keep_class_dim_e)), -1)
                 ll_p = ll_p.reshape(B * Q_p, -1)
         
-        if self.use_pe_cl:
-            pe_logits_ = torch.bmm
-
+        # if self.use_pe_cl:
+        #     pe_e_ = self.pe_fc_e_(out_e)
+        #     pe_p_ = self.pe_fc_p_(out_p)
+        #     pe_logits_ = torch.bmm(pe_e_.transpose(0, 1), pe_p_.transpose(0, 1).transpose(1, 2)).transpose(1, 2) # B, 51, 75
+        #     pe_logits_ = pe_logits_.reshape(pe_logits_.shape[0]*pe_logits_.shape[1]*pe_logits_.shape[2], -1)
+        #     loss_pe += F.binary_cross_entropy_with_logits(pe_logits_.float(), matrix_zero.float())
+        # else:
+        #     loss_pe += torch.tensor(0)
 
         x_e = self.classifier_e(out_e).transpose(0, 1)  # []
         x_p = self.classifier_p(out_p).transpose(0, 1)  # B query Atributes
