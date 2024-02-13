@@ -145,7 +145,7 @@ def main(args, config):
     test_dataloader = DataLoader(
         test_dataset,
         batch_size=config["test_batch_size"],
-        num_workers=0,
+        num_workers=2,
         pin_memory=True,
         sampler=None,
         shuffle=False,
@@ -223,7 +223,7 @@ def main(args, config):
 
     checkpoint = torch.load(args.checkpoint, map_location="cpu")
     state_dict = checkpoint["model"]
-    model.load_state_dict(state_dict)
+    model.load_state_dict(state_dict, strict=False)
     print("load checkpoint from %s" % args.checkpoint)
 
     print("Start testing")
@@ -287,10 +287,10 @@ def main(args, config):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="/Path/To/MedKLIP_config.yaml")
-    parser.add_argument("--model_path", default="/Path/To/checkpoint.pth")
+    parser.add_argument("--config", default="Sample_Zero-Shot_Grounding_RSNA/configs/MedKLIP_config.yaml")
+    parser.add_argument("--checkpoint", default="/home/wenrui/Projects/MIMIC/MedKLIP/runs/dual_stream/2024-02-12_21-42-46/checkpoint_state.pth")
     parser.add_argument("--device", default="cuda")
-    parser.add_argument("--gpu", type=str, default="1", help="gpu")
+    parser.add_argument("--gpu", type=str, default="0", help="gpu")
     args = parser.parse_args()
 
     config = yaml.load(open(args.config, "r"), Loader=yaml.Loader)

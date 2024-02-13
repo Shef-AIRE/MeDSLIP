@@ -23,9 +23,13 @@ args.attribute_set_size
 
 
 class MedKLIP(nn.Module):
-    def __init__(self, config, ana_book, disease_book, mode="train", use_pe_cl=True):
+    def __init__(self, config, ana_book, disease_book, mode="train", 
+                 ):
         super(MedKLIP, self).__init__()
-        self.use_pe_cl = use_pe_cl
+        self.use_pe_cl = config['use_pe_cl']
+        self.use_mask = config['use_mask']
+        self.use_ana_layer = config['use_ana_layer']
+        self.use_neg = config['use_neg']
         self.mode = mode
         self.d_model = config["d_model"]
         # ''' book embedding'''
@@ -44,6 +48,8 @@ class MedKLIP(nn.Module):
             )  # (**encoded_inputs)
             self.disease_book = self.disease_book.last_hidden_state[:, 0, :]
         self.disease_embedding_layer = nn.Linear(768, 256)
+        if self.use_ana_layer:
+            self.ana_embedding_layer = nn.Linear(768, 256)
         self.cl_fc_e = nn.Linear(256, 768)
         self.cl_fc_p = nn.Linear(256, 768)
 
@@ -159,8 +165,10 @@ class MedKLIP(nn.Module):
         self.res_l2_p = nn.Linear(num_ftrs, self.d_model)
         self.res_l1_e = nn.Linear(num_ftrs, num_ftrs)
         self.res_l2_e = nn.Linear(num_ftrs, self.d_model)
-
-        self.mask_generator = nn.Linear(num_ftrs, num_ftrs)
+        if self.use_mask:
+            self.mask_generator = nn.Linear(num_ftrs, num_ftrs)
+        else:
+            self.mask_generator = nn.Linear(num_ftrs, num_ftrs * 2)
 
 
         ###################################
@@ -230,11 +238,16 @@ class MedKLIP(nn.Module):
         res_fea = self.res_features(xis)  # batch_size,feature_size,patch_num,patch_num
         res_fea = rearrange(res_fea, "b d n1 n2 -> b (n1 n2) d")
         x = rearrange(res_fea, "b n d -> (b n) d")
-        mask = self.mask_generator(x)
-        x_e = mask * x
-        x_p = (1 - mask) * x
-        # x_e = x[:, 0:int(x.shape[1] / 2)]
-        # x_p = x[:, int(x.shape[1] / 2):]
+        if self.use_mask:
+            mask = self.mask_generator(x)
+            x_e = mask * x
+            x_p = (1 - mask) * x
+        else:
+            x_e = x
+            x_p = x
+            # x = self.mask_generator(x)
+            # x_e = x[:, 0:int(x.shape[1] / 2)]
+            # x_p = x[:, int(x.shape[1] / 2):]
         # batch_size,num,feature_size
         # h = h.squeeze()
         x_e = self.res_l1_e(x_e)
@@ -268,13 +281,14 @@ class MedKLIP(nn.Module):
         """ Visual Backbone """
         x_e, x_p = self.image_encoder(images)  # batch_size,patch_num,dim
         
-
-
         features_e = x_e.transpose(0, 1)  # patch_num b dim
         features_p = x_p.transpose(0, 1)  # patch_num b dim
         # query_embed = self.query_embed.weight.unsqueeze(1).repeat(1, B, 1) # query_number, batch, dim
         query_embed_e = self.disease_embedding_layer(self.disease_book)
-        query_embed_p = self.disease_embedding_layer(self.ana_book)
+        if self.use_ana_layer:
+            query_embed_p = self.ana_embedding_layer(self.ana_book)
+        else:
+            query_embed_p = self.disease_embedding_layer(self.ana_book)
         query_embed_e = query_embed_e.unsqueeze(1).repeat(1, B, 1)
         query_embed_p = query_embed_p.unsqueeze(1).repeat(1, B, 1)
         features_e, ws_e = self.decoder_e(
@@ -297,12 +311,16 @@ class MedKLIP(nn.Module):
 
             pe_logits = torch.bmm(pe_e.transpose(0, 1), pe_p.transpose(0, 1).transpose(1, 2)).transpose(1, 2) # B, 51, 75
             matrix_zero = matrix
-            masks = (matrix_zero >=0)
-            # matrix_zero[matrix_zero < 1] = 0
-            pe_logits = pe_logits[masks]
-            matrix_zero = matrix_zero[masks]
-            # pe_logits = pe_logits.reshape(pe_logits.shape[0]*pe_logits.shape[1]*pe_logits.shape[2], -1)
-            # matrix_zero = matrix_zero.reshape(matrix_zero.shape[0]*matrix_zero.shape[1]*matrix_zero.shape[2], -1)
+            if not self.use_neg:
+                # matrix_zero = (matrix_zero >=0)
+                masks = (matrix_zero >=0)
+                
+                pe_logits = pe_logits[masks]
+                matrix_zero = matrix_zero[masks]
+            else:
+                matrix_zero[matrix_zero < 1] = 0
+                # pe_logits = pe_logits.reshape(pe_logits.shape[0]*pe_logits.shape[1]*pe_logits.shape[2], -1)
+                # matrix_zero = matrix_zero.reshape(matrix_zero.shape[0]*matrix_zero.shape[1]*matrix_zero.shape[2], -1)
             # pe_logits = F.normalize(pe_logits)
             loss_pe = F.binary_cross_entropy_with_logits(pe_logits.float(), matrix_zero.float())
         else:

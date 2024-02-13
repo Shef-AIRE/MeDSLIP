@@ -180,7 +180,14 @@ def valid(model, data_loader, epoch, device, config, writer):
 
 
 def main(args, config):
+    gpus = torch.cuda.device_count()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if gpus >= 1:
+        world_size = torch.distributed.get_world_size()
+        rank = torch.distributed.get_rank()
+        device = torch.device("cuda", rank)
+        print("World size: ", world_size, "; Rank: ", rank)
+
     print("Total CUDA devices: ", torch.cuda.device_count())
     torch.set_default_tensor_type("torch.FloatTensor")
     cudnn.benchmark = True
@@ -194,27 +201,35 @@ def main(args, config):
     train_datasets = MedKLIP_Dataset(
         config["train_file"], config["label_file"], mode="train"
     )
+    val_datasets = MedKLIP_Dataset(
+        config["valid_file"], config["label_file"], mode="train"
+    )
+    if gpus >= 1:
+        # shuffl
+        train_sampler = torch.utils.data.distributed.DistributedSampler(train_datasets, num_replicas=world_size, rank=rank, shuffle=True)
+        val_sampler = torch.utils.data.distributed.DistributedSampler(val_datasets, num_replicas=world_size, rank=rank, shuffle=True)
+    else:
+        train_sampler = None
+        val_sampler = None
     train_dataloader = DataLoader(
         train_datasets,
         batch_size=config["batch_size"],
         num_workers=30,
         pin_memory=True,
-        sampler=None,
-        shuffle=True,
+        sampler=train_sampler,
+        # shuffle=True,
         collate_fn=None,
         drop_last=True,
     )
 
-    val_datasets = MedKLIP_Dataset(
-        config["valid_file"], config["label_file"], mode="train"
-    )
+    
     val_dataloader = DataLoader(
         val_datasets,
         batch_size=config["batch_size"],
         num_workers=30,
         pin_memory=True,
-        sampler=None,
-        shuffle=True,
+        sampler=val_sampler,
+        # shuffle=True,
         collate_fn=None,
         drop_last=True,
     )
@@ -283,10 +298,11 @@ def main(args, config):
     disease_book_tokenizer = get_tokenizer(tokenizer, disease_book).to(device)
     print("Creating model")
     model = MedKLIP(config, ana_book_tokenizer, disease_book_tokenizer, mode="train")
-    model = nn.DataParallel(
-        model, device_ids=[i for i in range(torch.cuda.device_count())]
-    )
     model = model.to(device)
+    model = nn.parallel.DistributedDataParallel(
+        model, device_ids=[rank], find_unused_parameters=True
+    )
+    
 
     arg_opt = utils.AttrDict(config["optimizer"])
     optimizer = create_optimizer(arg_opt, model)
@@ -373,7 +389,9 @@ if __name__ == "__main__":
     parser.add_argument("--checkpoint", default="")
     parser.add_argument("--output_dir", default="runs/dual_stream")
     parser.add_argument("--device", default="cuda")
-    parser.add_argument("--gpu", type=str, default="0", help="gpu")
+    parser.add_argument("--local_rank", default=0, type=int)
+    parser.add_argument("--world_size", default=1, type=int)
+    # parser.add_argument("--gpu", type=str, default="1", help="gpu")
     args = parser.parse_args()
     import datetime
     args.output_dir = os.path.join(
@@ -383,13 +401,17 @@ if __name__ == "__main__":
 
     config = yaml.load(open(args.config, "r"), Loader=yaml.Loader)
 
-    Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+    if not Path(args.output_dir).exists():
+        Path(args.output_dir).mkdir(parents=True, exist_ok=True)
 
     yaml.dump(config, open(os.path.join(args.output_dir, "config.yaml"), "w"))
+    
 
-    os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
-    if args.gpu != "-1":
-        torch.cuda.current_device()
-        torch.cuda._initialized = True
+    torch.distributed.init_process_group(backend="nccl", init_method="env://")
+
+    # os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
+    # if args.gpu != "-1":
+    #     torch.cuda.current_device()
+    #     torch.cuda._initialized = True
 
     main(args, config)

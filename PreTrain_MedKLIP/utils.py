@@ -283,6 +283,16 @@ def init_distributed_mode(args):
     torch.distributed.barrier()
     setup_for_distributed(args.rank == 0)
 
+# def isetup_ddp(rank, world_size):
+#     os.environ['MASTER_ADDR'] = 'localhost'
+#     os.environ['MASTER_PORT'] = '5678'
+
+#     dist.init_process_group(backend='nccl', world_size=world_size, rank=rank)
+
+# def set_data_ddp(rank, world_size, dataset, config):
+#     sampler = torch.utils.data.distributed.DistributedSampler(dataset, num_replicas=world_size, rank=rank)
+#     return torch.utils.data.DataLoader(dataset, batch_size=32, sampler=sampler)
+
 
 # def init_distributed_mode(args):
 

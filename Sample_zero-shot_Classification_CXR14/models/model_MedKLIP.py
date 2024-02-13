@@ -39,6 +39,7 @@ class MedKLIP(nn.Module):
             )  # (**encoded_inputs)
             self.disease_book = self.disease_book.last_hidden_state[:, 0, :]
         self.disease_embedding_layer = nn.Linear(768, 256)
+        # self.ana_embedding_layer = nn.Linear(768, 256)
         self.cl_fc_e = nn.Linear(256, 768)
         self.cl_fc_p = nn.Linear(256, 768)
 
@@ -133,9 +134,14 @@ class MedKLIP(nn.Module):
         res_fea = self.res_features(xis)  # batch_size,feature_size,patch_num,patch_num
         res_fea = rearrange(res_fea, "b d n1 n2 -> b (n1 n2) d")
         x = rearrange(res_fea, "b n d -> (b n) d")
-        x = self.mask_generator(x)
-        x_e = x[:, 0:int(x.shape[1] / 2)]
-        x_p = x[:, int(x.shape[1] / 2):]
+        # x = self.mask_generator(x)
+        # x_e = x[:, 0:int(x.shape[1] / 2)]
+        # x_p = x[:, int(x.shape[1] / 2):]
+        # masks = self.mask_generator(x)
+        # x_e = masks * x
+        # x_p = (1 - masks) * x
+        x_e = x
+        x_p = x
         # batch_size,num,feature_size
         # h = h.squeeze()
         x_e = self.res_l1_e(x_e)
@@ -167,8 +173,8 @@ class MedKLIP(nn.Module):
             pos=None,
             query_pos=None,
         )
-        out = self.dropout_feas_e(features)
-        x = self.classifier_e(out).transpose(0, 1)  # B query Atributes
+        features = self.dropout_feas_e(features)
+        x = self.classifier_e(features).transpose(0, 1)  # B query Atributes
 
         return x
 
