@@ -15,7 +15,8 @@ import torchvision
 import matplotlib.pyplot as plt
 from skimage import exposure
 import pydicom
-
+import cv2
+import tempfile
 
 original_class = [
     "normal",
@@ -220,17 +221,19 @@ def main(args, config):
         ]
     )
 
-    for i, sample in enumerate(img_path_list):
+    for j, sample in enumerate(img_path_list):
 
         images_raw = read_dcm(sample)
         images = transform(images_raw).to(device).unsqueeze(0)
-        bbox = bbox_list[i]
-        class_label = np.array([class_list[i]])
+        bbox = bbox_list[j]
+        class_label = np.array([class_list[j]])
         seg_map = np.zeros((1024, 1024))
+        cc = None
         if class_label == 1:
             boxes = bbox.split("|")
             for box in boxes:
                 cc = box.split(";")
+                print(cc)
                 seg_map[
                     int(float(cc[1])) : (int(float(cc[1])) + int(float(cc[3]))),
                     int(float(cc[0])) : (int(float(cc[0])) + int(float(cc[2]))),
@@ -257,11 +260,45 @@ def main(args, config):
 
 
             ws_e_resize = Image.fromarray(ws_e).resize(images_raw.size, Image.BILINEAR)
-            ws_p_resize = Image.fromarray(ws_p).resize(images_raw.size, Image.BILINEAR)
             ws_e_normalized = (ws_e_resize - np.min(ws_e_resize)) / (np.max(ws_e_resize) - np.min(ws_e_resize))
-            ws_p_normalized = (ws_p_resize - np.min(ws_p_resize)) / (np.max(ws_p_resize) - np.min(ws_p_resize))
-            ws_e_colormap = plt.get_cmap("viridis")(ws_e_normalized)[:, :, :3]
-            ws_p_colormap = plt.get_cmap("viridis")(ws_p_normalized)[:, :, :3]
+            ws_e_colormap = plt.get_cmap("viridis")(ws_e_normalized)[:, :, :3] * 0.7 + np.array(images_raw)/255 * 0.3
+
+            ws_p_resize = [None] * len(ws_p)
+            ws_p_normalized = ws_p_resize
+            ws_p_colormap = ws_p_resize
+            if cc:
+                cv2.rectangle(images_raw, (int(float(cc[0])), int(float(cc[1])), int(float(cc[2])), int(float(cc[3])), (0, 255, 0), 2))
+                cv2.rectangle(ws_e_colormap, (int(float(cc[0])), int(float(cc[1])), int(float(cc[2])), int(float(cc[3])), (0, 255, 0), 2))
+            fig, axs = plt.subplots(7, 8, figsize=(2000, 2500))
+            # plt.figure(figsize=(400, 500))
+            
+            axs[0].imshow(images_raw)
+            # axs[0].title("Original Image")
+            
+            axs[1].imshow(ws_e_colormap)
+            # plt.colorbar(ws_e_colormap)
+            # axs[1].title("WS_E")
+            
+            
+            for i, img in enumerate(ws_p):
+                ws_p_resize[i] = Image.fromarray(img).resize(images_raw.size, Image.BILINEAR)
+                ws_p_normalized[i] = (ws_p_resize[i] - np.min(ws_p_resize[i])) / (np.max(ws_p_resize[i]) - np.min(ws_p_resize[i])) 
+                ws_p_colormap[i] = plt.get_cmap("viridis")(ws_p_normalized[i])[:, :, :3] * 0.7 + np.array(images_raw)/255 * 0.3
+                if cc:
+                    cv2.rectangle(ws_p_colormap[i], (int(float(cc[0])), int(float(cc[1])), int(float(cc[2])), int(float(cc[3])), (0, 255, 0), 2))
+                
+                # plt.subplot(7, 8, i+3)
+                axs[i+2].imshow(ws_p_colormap[i])
+                # plt.colorbar(ws_p_colormap[i])
+                axs[i+2].title("WS_P_{}".format(i))
+            # plt.show()
+            # temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.png').name
+            save_dir = '/home/wenrui/Projects/MIMIC/MedKLIP/Sample_Zero-Shot_Grounding_RSNA/outputs/'
+            if not os.path.exists(save_dir):
+                os.makedirs(save_dir)   
+            plt.savefig(save_dir + '/{}.png'.format(i))
+
+
 
 
 if __name__ == "__main__":

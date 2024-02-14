@@ -254,20 +254,21 @@ def main(args, config):
             pred_map = (
                 ws_e[:, original_class.index("pneumonia"), :] # .detach().cpu().numpy()
             )
-            threshold = 0.07
-            # if args.use_ws_p:
-            #     pred_map = pred_map.unsqueeze(1)
-            #     similarity = torch.bmm(pred_map, ws_p.transpose(1, 2)).squeeze(1)
-            #     ids = torch.argmax(similarity, dim=1)
-            #     temp = torch.zeros(batch_size, ws_p.shape[2]).to(device)    
-            #     for i in range(batch_size):
-            #         temp[i] = ws_p[i, ids[i]]
+            threshold = 0.05
+            if args.use_ws_p:
+                pred_map = pred_map.unsqueeze(1)
+                similarity = torch.bmm(pred_map, ws_p.transpose(1, 2)).squeeze(1)
+                ids = torch.argmax(similarity, dim=1)
+                temp = torch.zeros(batch_size, ws_p.shape[2]).to(device)    
+                for i in range(batch_size):
+                    temp[i] = ws_p[i, ids[i]]
                 
-            #     pred_map = pred_map.squeeze() * temp
-                # threshold = 0.006
-
+                pred_map = pred_map.squeeze() * temp
                 # pred_map = pred_map.repeat(1, ws_p.shape[1], 1)
                 # pred_map = (pred_map * ws_p).mean(axis=1)
+                threshold = 0.0035
+
+                
             pred_map = pred_map / torch.max(pred_map)
 
             pred_map = pred_map.reshape(batch_size, 14, 14).detach().cpu().numpy()
@@ -308,10 +309,10 @@ def main(args, config):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="Sample_Zero-Shot_Grounding_RSNA/configs/MedKLIP_config.yaml")
-    parser.add_argument("--checkpoint", default="/home/wenrui/Projects/MIMIC/MedKLIP/runs/dual_stream/2024-02-13_16-45-19/checkpoint_28.pth")
+    parser.add_argument("--checkpoint", default="/home/wenrui/Projects/MIMIC/MedKLIP/runs/dual_stream/2024-02-13_16-45-19/checkpoint_35.pth")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--gpu", type=str, default="0", help="gpu")
-    parser.add_argument("--use_ws_p", type=bool, default=True, help="use ws_p")
+    parser.add_argument("--use_ws_p", type=bool, default=False, help="use ws_p")
 
     args = parser.parse_args()
 

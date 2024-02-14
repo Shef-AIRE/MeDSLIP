@@ -26,10 +26,11 @@ attribute_set_size: 2
 N: 4
 H: 4
 no_cl: False
-use_pe_cl: True 
-use_mask: False
+use_pe_cl: True
+use_mask: True
 use_ana_layer: False
 use_neg: True
+use_position: True
 exclude_class: False
 text_encoder: 'emilyalsentzer/Bio_ClinicalBERT'
 shuffle_ratio: 0.5

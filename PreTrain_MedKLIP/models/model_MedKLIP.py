@@ -53,17 +53,10 @@ class MedKLIP(nn.Module):
             self.ana_embedding_layer = nn.Linear(768, 256)
         self.cl_fc_e = nn.Linear(256, 768)
         self.pe_fc_e = nn.Linear(256, 768)
-        self.pe_fc_e_ = nn.Linear(256, 768)
-
-        if self.use_position:
-            self.cl_fc_p = nn.Linear(256, 768)
-            self.pe_fc_p = nn.Linear(256, 768)
-            self.pe_fc_p_ = nn.Linear(256, 768)
-            self.res_l1_p = nn.Linear(num_ftrs, num_ftrs)
-            self.res_l2_p = nn.Linear(num_ftrs, self.d_model)
+        # self.pe_fc_e_ = nn.Linear(256, 768)
 
         
-        
+
 
         self.disease_name = [
             "normal",
@@ -170,10 +163,15 @@ class MedKLIP(nn.Module):
         
         self.res_l1_e = nn.Linear(num_ftrs, num_ftrs)
         self.res_l2_e = nn.Linear(num_ftrs, self.d_model)
+        if self.use_position:
+            self.cl_fc_p = nn.Linear(256, 768)
+            self.pe_fc_p = nn.Linear(256, 768)
+            self.res_l1_p = nn.Linear(num_ftrs, num_ftrs)
+            self.res_l2_p = nn.Linear(num_ftrs, self.d_model)
         if self.use_mask:
             self.mask_generator = nn.Linear(num_ftrs, num_ftrs)
-        else:
-            self.mask_generator = nn.Linear(num_ftrs, num_ftrs * 2)
+        # else:
+        #     self.mask_generator = nn.Linear(num_ftrs, num_ftrs)
 
 
         ###################################
@@ -250,9 +248,6 @@ class MedKLIP(nn.Module):
         else:
             x_e = x
             x_p = x
-            # x = self.mask_generator(x)
-            # x_e = x[:, 0:int(x.shape[1] / 2)]
-            # x_p = x[:, int(x.shape[1] / 2):]
         # batch_size,num,feature_size
         # h = h.squeeze()
         x_e = self.res_l1_e(x_e)

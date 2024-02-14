@@ -365,7 +365,7 @@ def main(args, config):
             with open(os.path.join(args.output_dir, "log.txt"), "a") as f:
                 f.write(json.dumps(log_stats) + "\n")
 
-        if epoch % 10 == 0:
+        if epoch % 1 == 0:
             save_obj = {
                 "model": model.state_dict(),
                 "optimizer": optimizer.state_dict(),
@@ -386,7 +386,7 @@ def main(args, config):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="PreTrain_MedKLIP/configs/Pretrain_MedKLIP.yaml")
-    parser.add_argument("--checkpoint", default="")
+    parser.add_argument("--checkpoint", default="/home/wenrui/Projects/MIMIC/MedKLIP/runs/dual_stream/2024-02-09_04-26-52/checkpoint_41.pth")
     parser.add_argument("--output_dir", default="runs/dual_stream")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--local_rank", default=0, type=int)
