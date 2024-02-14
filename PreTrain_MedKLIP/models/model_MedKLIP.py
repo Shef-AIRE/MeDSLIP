@@ -30,6 +30,7 @@ class MedKLIP(nn.Module):
         self.use_mask = config['use_mask']
         self.use_ana_layer = config['use_ana_layer']
         self.use_neg = config['use_neg']
+        self.use_position = config['use_position']
         self.mode = mode
         self.d_model = config["d_model"]
         # ''' book embedding'''
@@ -51,13 +52,18 @@ class MedKLIP(nn.Module):
         if self.use_ana_layer:
             self.ana_embedding_layer = nn.Linear(768, 256)
         self.cl_fc_e = nn.Linear(256, 768)
-        self.cl_fc_p = nn.Linear(256, 768)
-
         self.pe_fc_e = nn.Linear(256, 768)
-        self.pe_fc_p = nn.Linear(256, 768)
-
         self.pe_fc_e_ = nn.Linear(256, 768)
-        self.pe_fc_p_ = nn.Linear(256, 768)
+
+        if self.use_position:
+            self.cl_fc_p = nn.Linear(256, 768)
+            self.pe_fc_p = nn.Linear(256, 768)
+            self.pe_fc_p_ = nn.Linear(256, 768)
+            self.res_l1_p = nn.Linear(num_ftrs, num_ftrs)
+            self.res_l2_p = nn.Linear(num_ftrs, self.d_model)
+
+        
+        
 
         self.disease_name = [
             "normal",
@@ -161,8 +167,7 @@ class MedKLIP(nn.Module):
         resnet = self._get_res_basemodel(config["res_base_model"])
         num_ftrs = int(resnet.fc.in_features / 2)
         self.res_features = nn.Sequential(*list(resnet.children())[:-3])
-        self.res_l1_p = nn.Linear(num_ftrs, num_ftrs)
-        self.res_l2_p = nn.Linear(num_ftrs, self.d_model)
+        
         self.res_l1_e = nn.Linear(num_ftrs, num_ftrs)
         self.res_l2_e = nn.Linear(num_ftrs, self.d_model)
         if self.use_mask:
@@ -306,8 +311,10 @@ class MedKLIP(nn.Module):
             query_pos=None,
         )
         if self.use_pe_cl:
-            pe_e = self.pe_fc_e(features_e)
-            pe_p = self.pe_fc_p(features_p)
+            # pe_e = self.pe_fc_e(features_e)
+            # pe_p = self.pe_fc_p(features_p)
+            pe_e = features_e
+            pe_p = features_p
 
             pe_logits = torch.bmm(pe_e.transpose(0, 1), pe_p.transpose(0, 1).transpose(1, 2)).transpose(1, 2) # B, 51, 75
             matrix_zero = matrix

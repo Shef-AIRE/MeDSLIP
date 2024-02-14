@@ -9,6 +9,13 @@ from torch.utils.data import DataLoader
 from dataset.dataset_RSNA import RSNA2018_Dataset
 from models.model_MedKLIP import MedKLIP
 from models.tokenization_bert import BertTokenizer
+from PIL import Image
+import pandas as pd
+import torchvision
+import matplotlib.pyplot as plt
+from skimage import exposure
+import pydicom
+
 
 original_class = [
     "normal",
@@ -101,38 +108,14 @@ def get_tokenizer(tokenizer, target_text):
 
     return target_tokenizer
 
+def read_dcm(dcm_path):
+    dcm_data = pydicom.read_file(dcm_path)
+    img = dcm_data.pixel_array.astype(float) / 255.0
+    img = exposure.equalize_hist(img)
 
-def score_cal(labels, seg_map, pred_map, threshold=0.0095):
-    """
-    labels B * 1
-    seg_map B *H * W
-    pred_map B * H * W
-    """
-    device = labels.device
-    total_num = torch.sum(labels)
-    mask = (labels == 1).squeeze()
-    seg_map = seg_map[mask, :, :].reshape(total_num, -1)
-    pred_map = pred_map[mask, :, :].reshape(total_num, -1)
-    one_hot_map = pred_map > threshold
-    dot_product = (seg_map * one_hot_map).reshape(total_num, -1)
-
-    max_number = torch.max(pred_map, dim=-1)[0]
-    point_score = 0
-    for i, number in enumerate(max_number):
-        temp_pred = (pred_map[i] == number).type(torch.int)
-        flag = int((torch.sum(temp_pred * seg_map[i])) > 0)
-        point_score = point_score + flag
-    mass_score = torch.sum(dot_product, dim=-1) / (
-        (torch.sum(seg_map, dim=-1) + torch.sum(one_hot_map, dim=-1))
-        - torch.sum(dot_product, dim=-1)
-    )
-    dice_score = (
-        2
-        * (torch.sum(dot_product, dim=-1))
-        / (torch.sum(seg_map, dim=-1) + torch.sum(one_hot_map, dim=-1))
-    )
-    return total_num, point_score, mass_score.to(device), dice_score.to(device)
-
+    img = (255 * img).astype(np.uint8)
+    img = Image.fromarray(img).convert("RGB")
+    return img
 
 def main(args, config):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -141,17 +124,21 @@ def main(args, config):
 
     #### Dataset ####
     print("Creating dataset")
-    test_dataset = RSNA2018_Dataset(config["test_file"])
-    test_dataloader = DataLoader(
-        test_dataset,
-        batch_size=config["test_batch_size"],
-        num_workers=2,
-        pin_memory=True,
-        sampler=None,
-        shuffle=False,
-        collate_fn=None,
-        drop_last=False,
-    )
+    # test_dataset = RSNA2018_Dataset(config["test_file"])
+    # test_dataloader = DataLoader(
+    #     test_dataset,
+    #     batch_size=config["test_batch_size"],
+    #     num_workers=2,
+    #     pin_memory=True,
+    #     sampler=None,
+    #     shuffle=False,
+    #     collate_fn=None,
+    #     drop_last=False,
+    # )
+    data_info = pd.read_csv('/home/wenrui/Projects/MIMIC/MedKLIP/Sample_Zero-Shot_Grounding_RSNA/data_sample/test.csv')
+    img_path_list = np.asarray(data_info.iloc[:, 1])
+    bbox_list = np.asarray(data_info.iloc[:, 2])
+    class_list = np.asarray(data_info.iloc[:, 3])
     json_book = json.load(open(config["disease_book"], "r"))
     disease_book = [json_book[i] for i in json_book]
     ana_book = [
@@ -216,11 +203,7 @@ def main(args, config):
 
     print("Creating model")
     model = MedKLIP(config, ana_book_tokenizer, disease_book_tokenizer, mode="train")
-    model = nn.DataParallel(
-        model, device_ids=[i for i in range(torch.cuda.device_count())]
-    )
     model = model.to(device)
-
     checkpoint = torch.load(args.checkpoint, map_location="cpu")
     state_dict = checkpoint["model"]
     model.load_state_dict(state_dict, strict=False)
@@ -229,86 +212,62 @@ def main(args, config):
     print("Start testing")
     model.eval()
 
-    dice_score_A = torch.FloatTensor()
-    dice_score_A = dice_score_A.to(device)
-    mass_score_A = torch.FloatTensor()
-    mass_score_A = mass_score_A.to(device)
-    total_num_A = 0
-    point_num_A = 0
+    transform = torchvision.transforms.Compose(
+        [
+            torchvision.transforms.Resize([224, 224]),
+            torchvision.transforms.ToTensor(),
+            torchvision.transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+        ]
+    )
 
-    for i, sample in enumerate(test_dataloader):
-        images = sample["image"].to(device)
-        image_path = sample["image_path"]
+    for i, sample in enumerate(img_path_list):
+
+        images_raw = read_dcm(sample)
+        images = transform(images_raw).to(device).unsqueeze(0)
+        bbox = bbox_list[i]
+        class_label = np.array([class_list[i]])
+        seg_map = np.zeros((1024, 1024))
+        if class_label == 1:
+            boxes = bbox.split("|")
+            for box in boxes:
+                cc = box.split(";")
+                seg_map[
+                    int(float(cc[1])) : (int(float(cc[1])) + int(float(cc[3]))),
+                    int(float(cc[0])) : (int(float(cc[0])) + int(float(cc[2]))),
+                ] = 1
+
+        
+
+        # image_path = sample["image_path"]
         batch_size = images.shape[0]
-        labels = sample["label"].to(device)
-        seg_map = sample["seg_map"][:, 0, :, :].to(device)  # B C H W
+        # labels = sample["label"].to(device)
+        # seg_map = sample["seg_map"][:, 0, :, :].to(device)  # B C H W
 
         with torch.no_grad():
             _, _, ws_e, ws_p = model(
-                images, labels, is_train=False
+                images, None, is_train=False
             )  # batch_size,batch_size,image_patch,text_patch
             ws_e = (ws_e[-4] + ws_e[-3] + ws_e[-2] + ws_e[-1]) / 4
             ws_p = (ws_p[-4] + ws_p[-3] + ws_p[-2] + ws_p[-1]) / 4
 
-            # ws_e = ws_e.reshape(batch_size, ws_e.shape[1], 14, 14)
-            pred_map = (
-                ws_e[:, original_class.index("pneumonia"), :] # .detach().cpu().numpy()
-            )
-            threshold = 0.07
-            # if args.use_ws_p:
-            #     pred_map = pred_map.unsqueeze(1)
-            #     similarity = torch.bmm(pred_map, ws_p.transpose(1, 2)).squeeze(1)
-            #     ids = torch.argmax(similarity, dim=1)
-            #     temp = torch.zeros(batch_size, ws_p.shape[2]).to(device)    
-            #     for i in range(batch_size):
-            #         temp[i] = ws_p[i, ids[i]]
-                
-            #     pred_map = pred_map.squeeze() * temp
-                # threshold = 0.006
+            ws_e = ws_e[:, original_class.index("pneumonia"), :]
 
-                # pred_map = pred_map.repeat(1, ws_p.shape[1], 1)
-                # pred_map = (pred_map * ws_p).mean(axis=1)
-            pred_map = pred_map / torch.max(pred_map)
+            ws_e = ws_e.reshape(batch_size, 14, 14).squeeze().cpu().numpy()
+            ws_p = ws_p.reshape(ws_p.shape[1], 14, 14).squeeze().cpu().numpy()
 
-            pred_map = pred_map.reshape(batch_size, 14, 14).detach().cpu().numpy()
-            
-            
-            pred_map = torch.from_numpy(
-                pred_map.repeat(16, axis=1).repeat(16, axis=2)
-            ).to(
-                device
-            )  # Final Grounding Heatmap
 
-            total_num, point_num, mass_score, dice_score = score_cal(
-                labels, seg_map, pred_map, threshold=threshold
-            )
-            total_num_A = total_num_A + total_num
-            point_num_A = point_num_A + point_num
-            dice_score_A = torch.cat((dice_score_A, dice_score), dim=0)
-            mass_score_A = torch.cat((mass_score_A, mass_score), dim=0)
-
-    dice_score_avg = torch.mean(dice_score_A)
-    mass_score_avg = torch.mean(mass_score_A)
-    print(
-        "The average dice_score is {dice_score_avg:.5f}".format(
-            dice_score_avg=dice_score_avg
-        )
-    )
-    print(
-        "The average iou_score is {mass_score_avg:.5f}".format(
-            mass_score_avg=mass_score_avg
-        )
-    )
-    point_score = point_num_A / total_num_A
-    print(
-        "The average point_score is {point_score:.5f}".format(point_score=point_score)
-    )
+            ws_e_resize = Image.fromarray(ws_e).resize(images_raw.size, Image.BILINEAR)
+            ws_p_resize = Image.fromarray(ws_p).resize(images_raw.size, Image.BILINEAR)
+            ws_e_normalized = (ws_e_resize - np.min(ws_e_resize)) / (np.max(ws_e_resize) - np.min(ws_e_resize))
+            ws_p_normalized = (ws_p_resize - np.min(ws_p_resize)) / (np.max(ws_p_resize) - np.min(ws_p_resize))
+            ws_e_colormap = plt.get_cmap("viridis")(ws_e_normalized)[:, :, :3]
+            ws_p_colormap = plt.get_cmap("viridis")(ws_p_normalized)[:, :, :3]
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="Sample_Zero-Shot_Grounding_RSNA/configs/MedKLIP_config.yaml")
-    parser.add_argument("--checkpoint", default="/home/wenrui/Projects/MIMIC/MedKLIP/runs/dual_stream/2024-02-13_16-45-19/checkpoint_28.pth")
+    parser.add_argument("--checkpoint", default="/home/wenrui/Projects/MIMIC/MedKLIP/runs/dual_stream/2024-02-09_04-26-52/checkpoint_state.pth")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--gpu", type=str, default="0", help="gpu")
     parser.add_argument("--use_ws_p", type=bool, default=True, help="use ws_p")
