@@ -182,7 +182,7 @@ def valid(model, data_loader, epoch, device, config, writer):
 def main(args, config):
     gpus = torch.cuda.device_count()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    if gpus >= 1:
+    if args.gpu > 1:
         world_size = torch.distributed.get_world_size()
         rank = torch.distributed.get_rank()
         device = torch.device("cuda", rank)
@@ -204,13 +204,13 @@ def main(args, config):
     val_datasets = MedKLIP_Dataset(
         config["valid_file"], config["label_file"], mode="train"
     )
-    if gpus >= 1:
+    if args.gpu > 1:
         # shuffl
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_datasets, num_replicas=world_size, rank=rank, shuffle=True)
         val_sampler = torch.utils.data.distributed.DistributedSampler(val_datasets, num_replicas=world_size, rank=rank, shuffle=True)
     else:
-        train_sampler = None
-        val_sampler = None
+        train_sampler = torch.utils.data.RandomSampler(train_datasets)
+        val_sampler = torch.utils.data.RandomSampler(val_datasets)
     train_dataloader = DataLoader(
         train_datasets,
         batch_size=config["batch_size"],
@@ -237,62 +237,65 @@ def main(args, config):
     print("Creating book")
     json_book = json.load(open(config["disease_book"], "r"))
     disease_book = [json_book[i] for i in json_book]
-    ana_book = [
-        "It is located at " + i
-        for i in [
+    json_book = json.load(open(config["anatomy_book"], "r"))
+    ana_list = [
             "trachea",
-            "left_hilar",
-            "right_hilar",
-            "hilar_unspec",
-            "left_pleural",
-            "right_pleural",
-            "pleural_unspec",
-            "heart_size",
-            "heart_border",
-            "left_diaphragm",
-            "right_diaphragm",
-            "diaphragm_unspec",
+            "left hilar",
+            "right hilar",
+            "hilar unspec",
+            "left pleural",
+            "right pleural",
+            "pleural unspec",
+            "heart size",
+            "heart border",
+            "left diaphragm",
+            "right diaphragm",
+            "diaphragm unspec",
             "retrocardiac",
-            "lower_left_lobe",
-            "upper_left_lobe",
-            "lower_right_lobe",
-            "middle_right_lobe",
-            "upper_right_lobe",
-            "left_lower_lung",
-            "left_mid_lung",
-            "left_upper_lung",
-            "left_apical_lung",
-            "left_lung_unspec",
-            "right_lower_lung",
-            "right_mid_lung",
-            "right_upper_lung",
-            "right_apical_lung",
-            "right_lung_unspec",
-            "lung_apices",
-            "lung_bases",
-            "left_costophrenic",
-            "right_costophrenic",
-            "costophrenic_unspec",
-            "cardiophrenic_sulcus",
+            "lower left lobe",
+            "upper left lobe",
+            "lower right lobe",
+            "middle right lobe",
+            "upper right lobe",
+            "left lower lung",
+            "left mid lung",
+            "left upper lung",
+            "left apical lung",
+            "left lung unspec",
+            "right lower lung",
+            "right mid lung",
+            "right upper lung",
+            "right apical lung",
+            "right lung unspec",
+            "lung apices",
+            "lung bases",
+            "left costophrenic",
+            "right costophrenic",
+            "costophrenic unspec",
+            "cardiophrenic sulcus",
             "mediastinal",
             "spine",
             "clavicle",
             "rib",
             "stomach",
-            "right_atrium",
-            "right_ventricle",
+            "right atrium",
+            "right ventricle",
             "aorta",
             "svc",
             "interstitium",
             "parenchymal",
-            "cavoatrial_junction",
+            "cavoatrial junction",
             "cardiopulmonary",
             "pulmonary",
-            "lung_volumes",
+            "lung volumes",
             "unspecified",
             "other",
         ]
-    ]
+    ana_book = []
+    for i in ana_list:
+        ana_book.append(
+            "It is located at " + i + '. ' + json_book[i]
+        )
     tokenizer = BertTokenizer.from_pretrained(config["text_encoder"])
     ana_book_tokenizer = get_tokenizer(tokenizer, ana_book).to(device)
     disease_book_tokenizer = get_tokenizer(tokenizer, disease_book).to(device)
@@ -391,7 +394,7 @@ if __name__ == "__main__":
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--local_rank", default=0, type=int)
     parser.add_argument("--world_size", default=1, type=int)
-    # parser.add_argument("--gpu", type=str, default="1", help="gpu")
+    parser.add_argument("--gpu", type=int, default=1, help="number of gpus")
     args = parser.parse_args()
     import datetime
     args.output_dir = os.path.join(
@@ -406,8 +409,11 @@ if __name__ == "__main__":
 
     yaml.dump(config, open(os.path.join(args.output_dir, "config.yaml"), "w"))
     
-
-    torch.distributed.init_process_group(backend="nccl", init_method="env://")
+    if args.gpu > 1:
+        # torch.multiprocessing.spawn(
+        #     main, nprocs=args.world_size, args=(args, config)
+        # )
+        torch.distributed.init_process_group(backend="nccl", init_method="env://")
 
     # os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
     # if args.gpu != "-1":

@@ -68,7 +68,7 @@ class MedKLIP(nn.Module):
         self.res_l1_e = nn.Linear(num_ftrs, num_ftrs)
         self.res_l2_e = nn.Linear(num_ftrs, self.d_model)
 
-        self.mask_generator = nn.Linear(num_ftrs, num_ftrs*2)
+        self.mask_generator = nn.Linear(num_ftrs, num_ftrs)
 
 
         ###################################
@@ -141,11 +141,14 @@ class MedKLIP(nn.Module):
         # x = self.mask_generator(x)
         # x_e = x[:, 0:int(x.shape[1] / 2)]
         # x_p = x[:, int(x.shape[1] / 2):]
-        # mask = self.mask_generator(x)
-        # x_e = mask * x
-        # x_p = (1 - mask) * x
-        x_e = x
-        x_p = x
+        mask = self.mask_generator(x)
+        x_e = mask * x
+        x_p = (1 - mask) * x
+        # x = self.mask_generator(x)
+        # x_e = x
+        # x_p = x
+        # x_e = x
+        # x_p = x
         # batch_size,num,feature_size
         # h = h.squeeze()
         x_e = self.res_l1_e(x_e)
@@ -193,9 +196,9 @@ class MedKLIP(nn.Module):
         out_p = self.dropout_feas_p(features_p)
 
         x_e = self.classifier_e(out_e).transpose(0, 1)  # B query Atributes
-        x_p = self.classifier_p(out_e).transpose(0, 1)  # B query Atributes
+        x_p = self.classifier_p(out_p).transpose(0, 1)  # B query Atributes
 
-        return x_e, x_p, ws_e, ws_p
+        return x_e, x_p, ws_e, ws_p, out_e, out_p
 
     @staticmethod
     def _init_weights(module):

@@ -23,16 +23,12 @@ args.attribute_set_size
 
 
 class MedKLIP(nn.Module):
-    def __init__(self, config, ana_book, disease_book, mode="train", 
-                 ):
+    def __init__(self, config, ana_book, disease_book, mode="train"):
         super(MedKLIP, self).__init__()
-        self.use_pe_cl = config['use_pe_cl']
-        self.use_mask = config['use_mask']
-        self.use_ana_layer = config['use_ana_layer']
-        self.use_neg = config['use_neg']
-        self.use_position = config['use_position']
+        self.use_pe_cl = config["use_pe_cl"]
         self.mode = mode
         self.d_model = config["d_model"]
+        self.use_mask = config["use_mask"]
         # ''' book embedding'''
         with torch.no_grad():
             bert_model = self._get_bert_basemodel(
@@ -49,14 +45,8 @@ class MedKLIP(nn.Module):
             )  # (**encoded_inputs)
             self.disease_book = self.disease_book.last_hidden_state[:, 0, :]
         self.disease_embedding_layer = nn.Linear(768, 256)
-        if self.use_ana_layer:
-            self.ana_embedding_layer = nn.Linear(768, 256)
         self.cl_fc_e = nn.Linear(256, 768)
-        self.pe_fc_e = nn.Linear(256, 768)
-        # self.pe_fc_e_ = nn.Linear(256, 768)
-
-        
-
+        self.cl_fc_p = nn.Linear(256, 768)
 
         self.disease_name = [
             "normal",
@@ -109,7 +99,7 @@ class MedKLIP(nn.Module):
             "blunt",
             "loss",
             "widen",
-            "coll_eapse",
+            "collapse",
             "density",
             "emphysema",
             "aerate",
@@ -160,18 +150,12 @@ class MedKLIP(nn.Module):
         resnet = self._get_res_basemodel(config["res_base_model"])
         num_ftrs = int(resnet.fc.in_features / 2)
         self.res_features = nn.Sequential(*list(resnet.children())[:-3])
-        
+        self.res_l1_p = nn.Linear(num_ftrs, num_ftrs)
+        self.res_l2_p = nn.Linear(num_ftrs, self.d_model)
         self.res_l1_e = nn.Linear(num_ftrs, num_ftrs)
         self.res_l2_e = nn.Linear(num_ftrs, self.d_model)
-        if self.use_position:
-            self.cl_fc_p = nn.Linear(256, 768)
-            self.pe_fc_p = nn.Linear(256, 768)
-            self.res_l1_p = nn.Linear(num_ftrs, num_ftrs)
-            self.res_l2_p = nn.Linear(num_ftrs, self.d_model)
-        if self.use_mask:
-            self.mask_generator = nn.Linear(num_ftrs, num_ftrs)
-        # else:
-        #     self.mask_generator = nn.Linear(num_ftrs, num_ftrs)
+
+        self.mask_generator = nn.Linear(num_ftrs, num_ftrs)
 
 
         ###################################
@@ -242,12 +226,11 @@ class MedKLIP(nn.Module):
         res_fea = rearrange(res_fea, "b d n1 n2 -> b (n1 n2) d")
         x = rearrange(res_fea, "b n d -> (b n) d")
         if self.use_mask:
-            mask = self.mask_generator(x)
-            x_e = mask * x
-            x_p = (1 - mask) * x
+            x_e = self.mask_generator(x) * x
+            x_p = (1 - self.mask_generator(x)) * x
         else:
-            x_e = x
-            x_p = x
+            x_e = self.mask_generator(x)
+            x_p = self.mask_generator(x)
         # batch_size,num,feature_size
         # h = h.squeeze()
         x_e = self.res_l1_e(x_e)
@@ -280,15 +263,13 @@ class MedKLIP(nn.Module):
         device = images.device
         """ Visual Backbone """
         x_e, x_p = self.image_encoder(images)  # batch_size,patch_num,dim
-        
+
+
         features_e = x_e.transpose(0, 1)  # patch_num b dim
         features_p = x_p.transpose(0, 1)  # patch_num b dim
         # query_embed = self.query_embed.weight.unsqueeze(1).repeat(1, B, 1) # query_number, batch, dim
         query_embed_e = self.disease_embedding_layer(self.disease_book)
-        if self.use_ana_layer:
-            query_embed_p = self.ana_embedding_layer(self.ana_book)
-        else:
-            query_embed_p = self.disease_embedding_layer(self.ana_book)
+        query_embed_p = self.disease_embedding_layer(self.ana_book)
         query_embed_e = query_embed_e.unsqueeze(1).repeat(1, B, 1)
         query_embed_p = query_embed_p.unsqueeze(1).repeat(1, B, 1)
         features_e, ws_e = self.decoder_e(
@@ -306,23 +287,12 @@ class MedKLIP(nn.Module):
             query_pos=None,
         )
         if self.use_pe_cl:
-            # pe_e = self.pe_fc_e(features_e)
-            # pe_p = self.pe_fc_p(features_p)
-            pe_e = features_e
-            pe_p = features_p
 
-            pe_logits = torch.bmm(pe_e.transpose(0, 1), pe_p.transpose(0, 1).transpose(1, 2)).transpose(1, 2) # B, 51, 75
+            pe_logits = torch.bmm(features_e.transpose(0, 1), features_p.transpose(0, 1).transpose(1, 2)).transpose(1, 2) # B, 51, 75
             matrix_zero = matrix
-            if not self.use_neg:
-                # matrix_zero = (matrix_zero >=0)
-                masks = (matrix_zero >=0)
-                
-                pe_logits = pe_logits[masks]
-                matrix_zero = matrix_zero[masks]
-            else:
-                matrix_zero[matrix_zero < 1] = 0
-                # pe_logits = pe_logits.reshape(pe_logits.shape[0]*pe_logits.shape[1]*pe_logits.shape[2], -1)
-                # matrix_zero = matrix_zero.reshape(matrix_zero.shape[0]*matrix_zero.shape[1]*matrix_zero.shape[2], -1)
+            matrix_zero[matrix_zero < 1] = 0
+            pe_logits = pe_logits.reshape(pe_logits.shape[0]*pe_logits.shape[1]*pe_logits.shape[2], -1)
+            matrix_zero = matrix_zero.reshape(matrix_zero.shape[0]*matrix_zero.shape[1]*matrix_zero.shape[2], -1)
             # pe_logits = F.normalize(pe_logits)
             loss_pe = F.binary_cross_entropy_with_logits(pe_logits.float(), matrix_zero.float())
         else:
@@ -331,7 +301,6 @@ class MedKLIP(nn.Module):
         out_e = self.dropout_feas_e(features_e)
         out_p = self.dropout_feas_p(features_p)
         
-        # out = self.dropout_feas(features)
         if is_train == True and no_cl == False:
 
             # get anatomy query
@@ -453,15 +422,6 @@ class MedKLIP(nn.Module):
                 ll_e = ll_e[:, self.keep_class_dim_e, :]
                 ll_e = ll_e.reshape(B * (len(self.keep_class_dim_e)), -1)
                 ll_p = ll_p.reshape(B * Q_p, -1)
-        
-        # if self.use_pe_cl:
-        #     pe_e_ = self.pe_fc_e_(out_e)
-        #     pe_p_ = self.pe_fc_p_(out_p)
-        #     pe_logits_ = torch.bmm(pe_e_.transpose(0, 1), pe_p_.transpose(0, 1).transpose(1, 2)).transpose(1, 2) # B, 51, 75
-        #     pe_logits_ = pe_logits_.reshape(pe_logits_.shape[0]*pe_logits_.shape[1]*pe_logits_.shape[2], -1)
-        #     loss_pe += F.binary_cross_entropy_with_logits(pe_logits_.float(), matrix_zero.float())
-        # else:
-        #     loss_pe += torch.tensor(0)
 
         x_e = self.classifier_e(out_e).transpose(0, 1)  # []
         x_p = self.classifier_p(out_p).transpose(0, 1)  # B query Atributes

@@ -3,6 +3,7 @@ valid_file: 'setting/rad_graph_metric_validate_local.json'
 test_file: 'setting/rad_graph_metric_test_local.json'
 label_file: 'setting/landmark_observation_adj_mtx.npy'
 disease_book: 'PreTrain_MedKLIP/data_file/observation explanation.json'
+anatomy_book: 'PreTrain_MedKLIP/data_file/position description.json'
 
 image_res: 224
 patch_size: 16

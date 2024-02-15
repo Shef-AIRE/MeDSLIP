@@ -244,9 +244,11 @@ def main(args, config):
         seg_map = sample["seg_map"][:, 0, :, :].to(device)  # B C H W
 
         with torch.no_grad():
-            _, _, ws_e, ws_p = model(
+            _, _, ws_e, ws_p, features_e, features_p = model(
                 images, labels, is_train=False
             )  # batch_size,batch_size,image_patch,text_patch
+            features_e = features_e.transpose(0, 1)
+            features_p = features_p.transpose(0, 1)
             ws_e = (ws_e[-4] + ws_e[-3] + ws_e[-2] + ws_e[-1]) / 4
             ws_p = (ws_p[-4] + ws_p[-3] + ws_p[-2] + ws_p[-1]) / 4
 
@@ -254,19 +256,23 @@ def main(args, config):
             pred_map = (
                 ws_e[:, original_class.index("pneumonia"), :] # .detach().cpu().numpy()
             )
-            threshold = 0.05
+            feature_e = (
+                features_e[:, original_class.index("pneumonia"), :]
+            )
+            threshold = 0.03
             if args.use_ws_p:
                 pred_map = pred_map.unsqueeze(1)
-                similarity = torch.bmm(pred_map, ws_p.transpose(1, 2)).squeeze(1)
+                feature_e = feature_e.unsqueeze(1)
+                similarity = torch.bmm(feature_e, features_p.transpose(1, 2)).squeeze(1)
                 ids = torch.argmax(similarity, dim=1)
                 temp = torch.zeros(batch_size, ws_p.shape[2]).to(device)    
                 for i in range(batch_size):
                     temp[i] = ws_p[i, ids[i]]
                 
-                pred_map = pred_map.squeeze() * temp
+                pred_map = (pred_map.squeeze() + temp) / 2
                 # pred_map = pred_map.repeat(1, ws_p.shape[1], 1)
                 # pred_map = (pred_map * ws_p).mean(axis=1)
-                threshold = 0.0035
+                threshold = 0.0008
 
                 
             pred_map = pred_map / torch.max(pred_map)
@@ -309,7 +315,7 @@ def main(args, config):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="Sample_Zero-Shot_Grounding_RSNA/configs/MedKLIP_config.yaml")
-    parser.add_argument("--checkpoint", default="/home/wenrui/Projects/MIMIC/MedKLIP/runs/dual_stream/2024-02-13_16-45-19/checkpoint_35.pth")
+    parser.add_argument("--checkpoint", default="/home/wenrui/Projects/MIMIC/MedKLIP/runs/dual_stream/2024-02-14_22-44-14/checkpoint_70.pth")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--gpu", type=str, default="0", help="gpu")
     parser.add_argument("--use_ws_p", type=bool, default=False, help="use ws_p")
