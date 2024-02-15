@@ -182,7 +182,7 @@ def valid(model, data_loader, epoch, device, config, writer):
 def main(args, config):
     gpus = torch.cuda.device_count()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    if args.gpu > 1:
+    if args.computing == "parallel":
         world_size = torch.distributed.get_world_size()
         rank = torch.distributed.get_rank()
         device = torch.device("cuda", rank)
@@ -204,7 +204,7 @@ def main(args, config):
     val_datasets = MedKLIP_Dataset(
         config["valid_file"], config["label_file"], mode="train"
     )
-    if args.gpu > 1:
+    if args.computing == "parallel":
         # shuffl
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_datasets, num_replicas=world_size, rank=rank, shuffle=True)
         val_sampler = torch.utils.data.distributed.DistributedSampler(val_datasets, num_replicas=world_size, rank=rank, shuffle=True)
@@ -389,12 +389,12 @@ def main(args, config):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="PreTrain_MedKLIP/configs/Pretrain_MedKLIP.yaml")
-    parser.add_argument("--checkpoint", default="/home/wenrui/Projects/MIMIC/MedKLIP/runs/dual_stream/2024-02-09_04-26-52/checkpoint_41.pth")
+    parser.add_argument("--checkpoint", default="")
     parser.add_argument("--output_dir", default="runs/dual_stream")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--local_rank", default=0, type=int)
     parser.add_argument("--world_size", default=1, type=int)
-    parser.add_argument("--gpu", type=int, default=1, help="number of gpus")
+    parser.add_argument("--computing", type=str, default='parallel', help="number of gpus")
     args = parser.parse_args()
     import datetime
     args.output_dir = os.path.join(
@@ -409,7 +409,7 @@ if __name__ == "__main__":
 
     yaml.dump(config, open(os.path.join(args.output_dir, "config.yaml"), "w"))
     
-    if args.gpu > 1:
+    if args.computing == "parallel":
         # torch.multiprocessing.spawn(
         #     main, nprocs=args.world_size, args=(args, config)
         # )
