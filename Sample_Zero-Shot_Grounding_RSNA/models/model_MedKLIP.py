@@ -47,13 +47,6 @@ class MedKLIP(nn.Module):
         self.cl_fc_e = nn.Linear(256, 768)
         self.cl_fc_p = nn.Linear(256, 768)
 
-        # self.pe_fc_e = nn.Linear(256, 768)
-        # self.pe_fc_p = nn.Linear(256, 768)
-
-        # self.pe_fc_e_ = nn.Linear(256, 768)
-        # self.pe_fc_p_ = nn.Linear(256, 768)
-
-
         
         """ visual backbone"""
         self.resnet_dict = {
@@ -138,19 +131,12 @@ class MedKLIP(nn.Module):
         res_fea = self.res_features(xis)  # batch_size,feature_size,patch_num,patch_num
         res_fea = rearrange(res_fea, "b d n1 n2 -> b (n1 n2) d")
         x = rearrange(res_fea, "b n d -> (b n) d")
-        # x = self.mask_generator(x)
-        # x_e = x[:, 0:int(x.shape[1] / 2)]
-        # x_p = x[:, int(x.shape[1] / 2):]
         mask = self.mask_generator(x)
         x_e = mask * x
         x_p = (1 - mask) * x
         # x = self.mask_generator(x)
         # x_e = x
         # x_p = x
-        # x_e = x
-        # x_p = x
-        # batch_size,num,feature_size
-        # h = h.squeeze()
         x_e = self.res_l1_e(x_e)
         x_p = self.res_l1_p(x_p)
         x_e = F.relu(x_e)

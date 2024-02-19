@@ -245,7 +245,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="Sample_zero-shot_Classification_CXR14/configs/MedKLIP_config.yaml")
     
-    parser.add_argument("--model_path", default="/home/wenrui/Projects/MIMIC/MedKLIP/runs/dual_stream/2024-02-14_22-44-14/checkpoint_72.pth")
+    parser.add_argument("--model_path", default="/home/wenrui/Projects/MIMIC/MedKLIP/runs/dual_stream/2024-02-16_16-53-27/checkpoint_46.pth")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--gpu", type=str, default="0", help="gpu")
     args = parser.parse_args()

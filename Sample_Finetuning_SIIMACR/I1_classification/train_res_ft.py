@@ -254,13 +254,13 @@ def main(args, config):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="Path/To/Res_train.yaml")
+    parser.add_argument("--config", default="/home/wenrui/Projects/MIMIC/MedKLIP/Sample_Finetuning_SIIMACR/I1_classification/configs/Res_train.yaml")
     parser.add_argument("--checkpoint", default="")
     parser.add_argument("--model_path", default="")
-    parser.add_argument("--pretrain_path", default="Path/To/checkpoint.pth")
-    parser.add_argument("--output_dir", default="Path/To/Outputdir")
+    parser.add_argument("--pretrain_path", default="/home/wenrui/Projects/MIMIC/MedKLIP/runs/dual_stream/2024-02-14_22-44-14/checkpoint_64.pth")
+    parser.add_argument("--output_dir", default="Sample_Finetuning_SIIMACR/I1_classification/runs/")
     parser.add_argument("--device", default="cuda")
-    parser.add_argument("--gpu", type=str, default="1", help="gpu")
+    parser.add_argument("--gpu", type=str, default="0", help="gpu")
     args = parser.parse_args()
 
     config = yaml.load(open(args.config, "r"), Loader=yaml.Loader)

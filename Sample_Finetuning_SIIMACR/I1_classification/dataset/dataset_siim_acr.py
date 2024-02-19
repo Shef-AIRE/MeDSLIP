@@ -34,8 +34,8 @@ class SIIM_ACR_Dataset(Dataset):
         else:
             self.img_path_list = np.asarray(data_info.iloc[:, 0])
 
-        self.img_root = "/remote-home/share/medical/public/SIIM-ACR/processed_images/"
-        self.seg_root = "/remote-home/share/medical/public/SIIM-ACR/segmentation_masks/"  # We have pre-processed the original SIIM_ACR data, you may change this to fix your data
+        self.img_root = "/home/wenrui/Projects/MIMIC/Data/SIIM-ACR/archive/images/"
+        self.seg_root = "/home/wenrui/Projects/MIMIC/Data/SIIM-ACR/archive/masks/"  # We have pre-processed the original SIIM_ACR data, you may change this to fix your data
 
         normalize = transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
 
@@ -82,7 +82,7 @@ class SIIM_ACR_Dataset(Dataset):
     def __getitem__(self, index):
         img_path = self.img_root + self.img_path_list[index] + ".png"
         seg_path = (
-            self.seg_root + self.img_path_list[index] + ".gif"
+            self.seg_root + self.img_path_list[index] + ".png"
         )  # We have pre-processed the original SIIM_ACR data, you may change this to fix your data
         img = PIL.Image.open(img_path).convert("RGB")
         image = self.transform(img)

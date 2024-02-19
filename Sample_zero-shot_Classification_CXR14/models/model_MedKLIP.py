@@ -140,6 +140,7 @@ class MedKLIP(nn.Module):
         masks = self.mask_generator(x)
         x_e = masks * x
         x_p = (1 - masks) * x
+        # x = self.mask_generator(x)
         # x_e = x
         # x_p = x
         # batch_size,num,feature_size

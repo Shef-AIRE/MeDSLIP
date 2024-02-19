@@ -235,8 +235,86 @@ def main(args, config):
     )
 
     print("Creating book")
+    disease_list = [
+        "normal",
+        "clear",
+        "sharp",
+        "sharply",
+        "unremarkable",
+        "intact",
+        "stable",
+        "free",
+        "effusion",
+        "opacity",
+        "pneumothorax",
+        "edema",
+        "atelectasis",
+        "tube",
+        "consolidation",
+        "process",
+        "abnormality",
+        "enlarge",
+        "tip",
+        "low",
+        "pneumonia",
+        "line",
+        "congestion",
+        "catheter",
+        "cardiomegaly",
+        "fracture",
+        "air",
+        "tortuous",
+        "lead",
+        "disease",
+        "calcification",
+        "prominence",
+        "device",
+        "engorgement",
+        "picc",
+        "clip",
+        "elevation",
+        "expand",
+        "nodule",
+        "wire",
+        "fluid",
+        "degenerative",
+        "pacemaker",
+        "thicken",
+        "marking",
+        "scar",
+        "hyperinflate",
+        "blunt",
+        "loss",
+        "widen",
+        "collapse",
+        "density",
+        "emphysema",
+        "aerate",
+        "mass",
+        "crowd",
+        "infiltrate",
+        "obscure",
+        "deformity",
+        "hernia",
+        "drainage",
+        "distention",
+        "shift",
+        "stent",
+        "pressure",
+        "lesion",
+        "finding",
+        "borderline",
+        "hardware",
+        "dilation",
+        "chf",
+        "redistribution",
+        "aspiration",
+        "tail_abnorm_obs",
+        "excluded_obs",
+    ]
     json_book = json.load(open(config["disease_book"], "r"))
     disease_book = [json_book[i] for i in json_book]
+    disease_book_simple = ["The entity is " + i for i in disease_list]
     json_book = json.load(open(config["anatomy_book"], "r"))
     ana_list = [
             "trachea",
@@ -292,21 +370,27 @@ def main(args, config):
             "other",
         ]
     ana_book = []
+    ana_book_simple = []
     for i in ana_list:
         ana_book.append(
             "It is located at " + i + '. ' + json_book[i]
         )
+        ana_book_simple.append(
+            "It is located at " + i
+        )
+    
     tokenizer = BertTokenizer.from_pretrained(config["text_encoder"])
     ana_book_tokenizer = get_tokenizer(tokenizer, ana_book).to(device)
+    ana_book_simple_tokenizer = get_tokenizer(tokenizer, ana_book_simple).to(device)
     disease_book_tokenizer = get_tokenizer(tokenizer, disease_book).to(device)
+    disease_book_simple_tokenizer = get_tokenizer(tokenizer, disease_book_simple).to(device)
     print("Creating model")
-    model = MedKLIP(config, ana_book_tokenizer, disease_book_tokenizer, mode="train")
+    model = MedKLIP(config, ana_book_tokenizer, disease_book_tokenizer, ana_book_simple_tokenizer, disease_book_simple_tokenizer, mode="train")
     model = model.to(device)
     model = nn.parallel.DistributedDataParallel(
         model, device_ids=[rank], find_unused_parameters=True
     )
     
-
     arg_opt = utils.AttrDict(config["optimizer"])
     optimizer = create_optimizer(arg_opt, model)
     arg_sche = utils.AttrDict(config["schedular"])
@@ -368,7 +452,7 @@ def main(args, config):
             with open(os.path.join(args.output_dir, "log.txt"), "a") as f:
                 f.write(json.dumps(log_stats) + "\n")
 
-        if epoch % 1 == 0:
+        if epoch % 1 == 0 and epoch > 15:
             save_obj = {
                 "model": model.state_dict(),
                 "optimizer": optimizer.state_dict(),
