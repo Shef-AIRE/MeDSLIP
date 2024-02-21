@@ -43,8 +43,8 @@ class MedKLIP(nn.Module):
         self.cl_fc_e = nn.Linear(256, 768)
         self.cl_fc_p = nn.Linear(256, 768)
 
-        # self.pe_fc_e = nn.Linear(256, 768)
-        # self.pe_fc_p = nn.Linear(256, 768)
+        self.pe_fc_e = nn.Linear(256, 768)
+        self.pe_fc_p = nn.Linear(256, 768)
 
         # self.pe_fc_e_ = nn.Linear(256, 768)
         # self.pe_fc_p_ = nn.Linear(256, 768)

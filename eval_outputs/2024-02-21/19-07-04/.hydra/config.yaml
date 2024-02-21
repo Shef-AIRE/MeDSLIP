@@ -1,0 +1,52 @@
+base:
+  image_size: 224
+test:
+  checkpoint: /home/wenrui/Projects/MIMIC/MedKLIP/baseline/cxr-clip/r50_m.tar
+  seed: 1234
+data_test:
+  rsna_pneumonia:
+    name: rsna_pneumonia
+    data_type: image_classification
+    data_path: /home/wenrui/Projects/MIMIC/MedKLIP/baseline/cxr-clip/datasets/rsna_test_2.csv
+    n_class: 1
+dataloader:
+  train:
+    pin_memory: true
+    shuffle: true
+    drop_last: true
+    num_workers: 8
+    prefetch_factor: 16
+    batch_size: 128
+  valid:
+    pin_memory: true
+    shuffle: false
+    drop_last: false
+    num_workers: 8
+    prefetch_factor: 16
+    batch_size: 128
+  test:
+    pin_memory: true
+    shuffle: false
+    drop_last: false
+    num_workers: 16
+    batch_size: 128
+transform:
+  train:
+    ResizedCrop:
+      size: ${base.image_size}
+    CenterCrop:
+      size: ${base.image_size}
+  valid:
+    Resize:
+      size: ${base.image_size}
+    CenterCrop:
+      size: ${base.image_size}
+  test:
+    Resize:
+      size: ${base.image_size}
+    CenterCrop:
+      size: ${base.image_size}
+tokenizer:
+  source: huggingface
+  pretrained_model_name_or_path: emilyalsentzer/Bio_ClinicalBERT
+  cache_dir: huggingface/tokenizers

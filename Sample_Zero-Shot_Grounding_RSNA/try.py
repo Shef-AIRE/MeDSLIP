@@ -247,7 +247,7 @@ def main(args, config):
         # seg_map = sample["seg_map"][:, 0, :, :].to(device)  # B C H W
 
         with torch.no_grad():
-            _, _, ws_e, ws_p = model(
+            _, _, ws_e, ws_p, _, _ = model(
                 images, None, is_train=False
             )  # batch_size,batch_size,image_patch,text_patch
             ws_e = (ws_e[-4] + ws_e[-3] + ws_e[-2] + ws_e[-1]) / 4
@@ -269,8 +269,9 @@ def main(args, config):
             if cc:
                 cv2.rectangle(images_raw, (int(float(cc[0])), int(float(cc[1])), int(float(cc[2])), int(float(cc[3])), (0, 255, 0), 2))
                 cv2.rectangle(ws_e_colormap, (int(float(cc[0])), int(float(cc[1])), int(float(cc[2])), int(float(cc[3])), (0, 255, 0), 2))
-            fig, axs = plt.subplots(7, 8, figsize=(2000, 2500))
+            fig, axs = plt.subplots(nrows=7, ncols=8, figsize=(200, 200))
             # plt.figure(figsize=(400, 500))
+            axs = axs.flatten()
             
             axs[0].imshow(images_raw)
             # axs[0].title("Original Image")
@@ -290,13 +291,16 @@ def main(args, config):
                 # plt.subplot(7, 8, i+3)
                 axs[i+2].imshow(ws_p_colormap[i])
                 # plt.colorbar(ws_p_colormap[i])
-                axs[i+2].title("WS_P_{}".format(i))
-            # plt.show()
+                # axs[i+2].title(f"WS_P_{i}")
+            plt.tight_layout()
+
+            plt.show()
             # temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.png').name
             save_dir = '/home/wenrui/Projects/MIMIC/MedKLIP/Sample_Zero-Shot_Grounding_RSNA/outputs/'
             if not os.path.exists(save_dir):
                 os.makedirs(save_dir)   
-            plt.savefig(save_dir + '/{}.png'.format(i))
+            # plt.savefig(save_dir + '/{}.png'.format(i))
+            print("Save image to ", save_dir + '/{}.png'.format(i))
 
 
 
@@ -304,7 +308,7 @@ def main(args, config):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="Sample_Zero-Shot_Grounding_RSNA/configs/MedKLIP_config.yaml")
-    parser.add_argument("--checkpoint", default="/home/wenrui/Projects/MIMIC/MedKLIP/runs/dual_stream/2024-02-09_04-26-52/checkpoint_state.pth")
+    parser.add_argument("--checkpoint", default="/home/wenrui/Projects/MIMIC/MedKLIP/runs/dual_stream/2024-02-14_22-44-14/checkpoint_64.pth")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--gpu", type=str, default="0", help="gpu")
     parser.add_argument("--use_ws_p", type=bool, default=True, help="use ws_p")

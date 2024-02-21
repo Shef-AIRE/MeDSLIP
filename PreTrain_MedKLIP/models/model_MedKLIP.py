@@ -23,14 +23,16 @@ args.attribute_set_size
 
 
 class MedKLIP(nn.Module):
-    def __init__(self, config, ana_book, disease_book, ana_book_simple, disease_book_simple, mode="train"):
+    def __init__(self, config, ana_book, disease_book, mode="train", 
+                 ):
         super(MedKLIP, self).__init__()
-        self.use_pe_cl = config["use_pe_cl"]
+        self.use_pe_cl = config['use_pe_cl']
+        self.use_mask = config['use_mask']
+        self.use_ana_layer = config['use_ana_layer']
+        self.use_neg = config['use_neg']
+        self.use_position = config['use_position']
         self.mode = mode
         self.d_model = config["d_model"]
-        self.use_mask = config["use_mask"]
-        self.use_simple_anatomy = config["use_simple_anatomy"]
-        self.use_position = config["use_position"]
         # ''' book embedding'''
         with torch.no_grad():
             bert_model = self._get_bert_basemodel(
@@ -40,25 +42,21 @@ class MedKLIP(nn.Module):
                 input_ids=ana_book["input_ids"],
                 attention_mask=ana_book["attention_mask"],
             )  # (**encoded_inputs)
-            self.ana_book_simple = bert_model(
-                input_ids=ana_book_simple["input_ids"],
-                attention_mask=ana_book_simple["attention_mask"],
-            )
             self.ana_book = self.ana_book.last_hidden_state[:, 0, :]
-            self.ana_book_simple = self.ana_book_simple.last_hidden_state[:, 0, :]
             self.disease_book = bert_model(
                 input_ids=disease_book["input_ids"],
                 attention_mask=disease_book["attention_mask"],
             )  # (**encoded_inputs)
             self.disease_book = self.disease_book.last_hidden_state[:, 0, :]
-            self.disease_book_simple = bert_model(
-                input_ids=disease_book_simple["input_ids"],
-                attention_mask=disease_book_simple["attention_mask"],
-            )
-            self.disease_book_simple = self.disease_book_simple.last_hidden_state[:, 0, :]
         self.disease_embedding_layer = nn.Linear(768, 256)
+        if self.use_ana_layer:
+            self.ana_embedding_layer = nn.Linear(768, 256)
         self.cl_fc_e = nn.Linear(256, 768)
-        self.cl_fc_p = nn.Linear(256, 768)
+        self.pe_fc_e = nn.Linear(256, 768)
+        # self.pe_fc_e_ = nn.Linear(256, 768)
+
+        
+
 
         self.disease_name = [
             "normal",
@@ -111,7 +109,7 @@ class MedKLIP(nn.Module):
             "blunt",
             "loss",
             "widen",
-            "collapse",
+            "coll_eapse",
             "density",
             "emphysema",
             "aerate",
@@ -162,12 +160,18 @@ class MedKLIP(nn.Module):
         resnet = self._get_res_basemodel(config["res_base_model"])
         num_ftrs = int(resnet.fc.in_features / 2)
         self.res_features = nn.Sequential(*list(resnet.children())[:-3])
-        self.res_l1_p = nn.Linear(num_ftrs, num_ftrs)
-        self.res_l2_p = nn.Linear(num_ftrs, self.d_model)
+        
         self.res_l1_e = nn.Linear(num_ftrs, num_ftrs)
         self.res_l2_e = nn.Linear(num_ftrs, self.d_model)
-
-        self.mask_generator = nn.Linear(num_ftrs, num_ftrs)
+        if self.use_position:
+            self.cl_fc_p = nn.Linear(256, 768)
+            self.pe_fc_p = nn.Linear(256, 768)
+            self.res_l1_p = nn.Linear(num_ftrs, num_ftrs)
+            self.res_l2_p = nn.Linear(num_ftrs, self.d_model)
+        if self.use_mask:
+            self.mask_generator = nn.Linear(num_ftrs, num_ftrs)
+        # else:
+        #     self.mask_generator = nn.Linear(num_ftrs, num_ftrs)
 
 
         ###################################
@@ -238,11 +242,12 @@ class MedKLIP(nn.Module):
         res_fea = rearrange(res_fea, "b d n1 n2 -> b (n1 n2) d")
         x = rearrange(res_fea, "b n d -> (b n) d")
         if self.use_mask:
-            x_e = self.mask_generator(x) * x
-            x_p = (1 - self.mask_generator(x)) * x
+            mask = self.mask_generator(x)
+            x_e = mask * x
+            x_p = (1 - mask) * x
         else:
-            x_e = self.mask_generator(x)
-            x_p = self.mask_generator(x)
+            x_e = x
+            x_p = x
         # batch_size,num,feature_size
         # h = h.squeeze()
         x_e = self.res_l1_e(x_e)
@@ -275,19 +280,17 @@ class MedKLIP(nn.Module):
         device = images.device
         """ Visual Backbone """
         x_e, x_p = self.image_encoder(images)  # batch_size,patch_num,dim
-
-
+        
         features_e = x_e.transpose(0, 1)  # patch_num b dim
         features_p = x_p.transpose(0, 1)  # patch_num b dim
         # query_embed = self.query_embed.weight.unsqueeze(1).repeat(1, B, 1) # query_number, batch, dim
         query_embed_e = self.disease_embedding_layer(self.disease_book)
-        query_embed_p = self.disease_embedding_layer(self.ana_book)
-        query_embed_p_simple = self.disease_embedding_layer(self.ana_book_simple)
-        query_embed_e_simple = self.disease_embedding_layer(self.disease_book_simple)
+        if self.use_ana_layer:
+            query_embed_p = self.ana_embedding_layer(self.ana_book)
+        else:
+            query_embed_p = self.disease_embedding_layer(self.ana_book)
         query_embed_e = query_embed_e.unsqueeze(1).repeat(1, B, 1)
         query_embed_p = query_embed_p.unsqueeze(1).repeat(1, B, 1)
-        query_embed_p_simple = query_embed_p_simple.unsqueeze(1).repeat(1, B, 1)
-        query_embed_e_simple = query_embed_e_simple.unsqueeze(1).repeat(1, B, 1)
         features_e, ws_e = self.decoder_e(
             query_embed_e,
             features_e,
@@ -303,12 +306,23 @@ class MedKLIP(nn.Module):
             query_pos=None,
         )
         if self.use_pe_cl:
+            # pe_e = self.pe_fc_e(features_e)
+            # pe_p = self.pe_fc_p(features_p)
+            pe_e = features_e
+            pe_p = features_p
 
-            pe_logits = torch.bmm(features_e.transpose(0, 1), features_p.transpose(0, 1).transpose(1, 2)).transpose(1, 2) # B, 51, 75
+            pe_logits = torch.bmm(pe_e.transpose(0, 1), pe_p.transpose(0, 1).transpose(1, 2)).transpose(1, 2) # B, 51, 75
             matrix_zero = matrix
-            matrix_zero[matrix_zero < 1] = 0
-            pe_logits = pe_logits.reshape(pe_logits.shape[0]*pe_logits.shape[1]*pe_logits.shape[2], -1)
-            matrix_zero = matrix_zero.reshape(matrix_zero.shape[0]*matrix_zero.shape[1]*matrix_zero.shape[2], -1)
+            if not self.use_neg:
+                # matrix_zero = (matrix_zero >=0)
+                masks = (matrix_zero >=0)
+                
+                pe_logits = pe_logits[masks]
+                matrix_zero = matrix_zero[masks]
+            else:
+                matrix_zero[matrix_zero < 1] = 0
+                # pe_logits = pe_logits.reshape(pe_logits.shape[0]*pe_logits.shape[1]*pe_logits.shape[2], -1)
+                # matrix_zero = matrix_zero.reshape(matrix_zero.shape[0]*matrix_zero.shape[1]*matrix_zero.shape[2], -1)
             # pe_logits = F.normalize(pe_logits)
             loss_pe = F.binary_cross_entropy_with_logits(pe_logits.float(), matrix_zero.float())
         else:
@@ -317,12 +331,10 @@ class MedKLIP(nn.Module):
         out_e = self.dropout_feas_e(features_e)
         out_p = self.dropout_feas_p(features_p)
         
+        # out = self.dropout_feas(features)
         if is_train == True and no_cl == False:
 
             # get anatomy query
-            if self.use_simple_anatomy:
-                self.ana_book = self.ana_book_simple
-                self.disease_book = self.disease_book_simple
             anatomy_query = torch.zeros(
                 [
                     sample_index_e.shape[0],
@@ -333,74 +345,46 @@ class MedKLIP(nn.Module):
             ).to(
                 device
             )  # [128, 75, 8, 768]
+            entity_query = torch.zeros(
+                [
+                    sample_index_p.shape[0],
+                    sample_index_p.shape[1],
+                    sample_index_p.shape[2],
+                    self.disease_book.shape[-1],
+                ]
+            ).to(device)
+
             anatomy_query = self.ana_book[sample_index_e, :] * (
                 sample_index_e != -1
             ).int().unsqueeze(-1).repeat(1, 1, 1, 768)  # batch, Q , position_num ,dim [128, 75, 8, 768]
-
-            if self.use_position:
-                entity_query = torch.zeros(
-                    [
-                        sample_index_p.shape[0],
-                        sample_index_p.shape[1],
-                        sample_index_p.shape[2],
-                        self.disease_book.shape[-1],
-                    ]
-                ).to(device)
-
-            
-                entity_query = self.disease_book[sample_index_p, :] * (
-                    sample_index_p != -1
-                ).int().unsqueeze(-1).repeat(1, 1, 1, 768)
-                matrix_zero_p = matrix.transpose(1, 2)
-                matrix_zero_p[matrix_zero_p < 1] = 0
-                matrix_zero_p = matrix_zero_p.unsqueeze(3).repeat(
-                    1, 1, 1, entity_query.shape[-1]
-                )
-                dis_temp = self.disease_book
-                dis_temp = dis_temp.unsqueeze(0).repeat(entity_query.shape[0], 1, 1)
-                dis_temp = dis_temp.unsqueeze(2).repeat(1, 1, entity_query.shape[1], 1)
-                posi_matrix_p = (matrix_zero_p * dis_temp).transpose(1, 2)
-                for i in range(entity_query.shape[0]):
-                    for j in range(entity_query.shape[1]):
-                        if (posi_matrix_p[i, j] != 0).sum() > 0:
-                            num_posi = (
-                                torch.nonzero(posi_matrix_p[i, j], as_tuple=True)[0]
-                                .unique()
-                                .shape[0]
-                            )
-                            assert entity_query[i, j, 0, :].sum() == 0
-                            entity_query[i, j, 0, :] = (
-                                posi_matrix_p[i, j, :, :].sum(dim=0) / num_posi
-                            )
-                ll_p = out_p.transpose(0, 1)  # B Q A
-                Q_p = ll_p.shape[1]
-                ll_p = ll_p.reshape(ll_p.shape[0] * ll_p.shape[1], -1)
-                ll_p = self.cl_fc_p(ll_p)
-                ll_p = ll_p.unsqueeze(dim=-1)
-                entity_query = entity_query.reshape(B * Q_p, 8, 768)
-                ll_p = torch.bmm(entity_query, ll_p).squeeze()  # B Q position_num
-                cl_labels_p = torch.zeros((ll_p.shape[0])).to(device)
-                if exclude_class == True:
-                    cl_labels_p = cl_labels_p.reshape(B, Q_p)
-                    cl_labels_p = cl_labels_p.reshape(-1)
-                    ll_p = ll_p.reshape(B, Q_p, -1)
-                    ll_p = ll_p.reshape(B * Q_p, -1)
-                x_p = self.classifier_p(out_p).transpose(0, 1)  # B query Atributes
+            entity_query = self.disease_book[sample_index_p, :] * (
+                sample_index_p != -1
+            ).int().unsqueeze(-1).repeat(1, 1, 1, 768)
 
             # positive_index_e = torch.where(sample_index_e == -1)
             # positive_index_p = torch.where(sample_index_p == -1)
 
             matrix_zero_e = matrix
+            matrix_zero_p = matrix.transpose(1, 2)
             matrix_zero_e[matrix_zero_e < 1] = 0
+            matrix_zero_p[matrix_zero_p < 1] = 0
             matrix_zero_e = matrix_zero_e.unsqueeze(3).repeat(
                 1, 1, 1, anatomy_query.shape[-1]
             )
+            matrix_zero_p = matrix_zero_p.unsqueeze(3).repeat(
+                1, 1, 1, entity_query.shape[-1]
+            )
 
             ana_temp = self.ana_book
+            dis_temp = self.disease_book
             ana_temp = ana_temp.unsqueeze(0).repeat(anatomy_query.shape[0], 1, 1)
+            dis_temp = dis_temp.unsqueeze(0).repeat(entity_query.shape[0], 1, 1)
             ana_temp = ana_temp.unsqueeze(2).repeat(1, 1, anatomy_query.shape[1], 1)
+            dis_temp = dis_temp.unsqueeze(2).repeat(1, 1, entity_query.shape[1], 1)
+
             posi_matrix_e = (matrix_zero_e * ana_temp).transpose(1, 2)
-            
+            posi_matrix_p = (matrix_zero_p * dis_temp).transpose(1, 2)
+
             for i in range(anatomy_query.shape[0]):
                 for j in range(anatomy_query.shape[1]):
                     if (posi_matrix_e[i, j] != 0).sum() > 0:
@@ -413,25 +397,74 @@ class MedKLIP(nn.Module):
                         anatomy_query[i, j, 0, :] = (
                             posi_matrix_e[i, j, :, :].sum(dim=0) / num_posi
                         )
+            
+            for i in range(entity_query.shape[0]):
+                for j in range(entity_query.shape[1]):
+                    if (posi_matrix_p[i, j] != 0).sum() > 0:
+                        num_posi = (
+                            torch.nonzero(posi_matrix_p[i, j], as_tuple=True)[0]
+                            .unique()
+                            .shape[0]
+                        )
+                        assert entity_query[i, j, 0, :].sum() == 0
+                        entity_query[i, j, 0, :] = (
+                            posi_matrix_p[i, j, :, :].sum(dim=0) / num_posi
+                        )
+            # Got anatomy query
 
             # [Q,B,A]
             ll_e = out_e.transpose(0, 1)  # B Q A
-            Q_e = ll_e.shape[1]           
-            ll_e = ll_e.reshape(ll_e.shape[0] * ll_e.shape[1], -1)    
+            ll_p = out_p.transpose(0, 1)  # B Q A
+
+            Q_e = ll_e.shape[1]
+            Q_p = ll_p.shape[1]
+
+            ll_e = ll_e.reshape(ll_e.shape[0] * ll_e.shape[1], -1)
+            ll_p = ll_p.reshape(ll_p.shape[0] * ll_p.shape[1], -1)
+
             ll_e = self.cl_fc_e(ll_e)
+            ll_p = self.cl_fc_p(ll_p)
+
             ll_e = ll_e.unsqueeze(dim=-1)
+            ll_p = ll_p.unsqueeze(dim=-1)
+
             anatomy_query = anatomy_query.reshape(B * Q_e, 8, 768)
+            entity_query = entity_query.reshape(B * Q_p, 8, 768)
+
             ll_e = torch.bmm(anatomy_query, ll_e).squeeze()  # B Q position_num
+            ll_p = torch.bmm(entity_query, ll_p).squeeze()  # B Q position_num
+
             cl_labels_e = torch.zeros((ll_e.shape[0])).to(device)
+            cl_labels_p = torch.zeros((ll_p.shape[0])).to(device)
+
             if exclude_class == True:
                 cl_labels_e = cl_labels_e.reshape(B, Q_e)
+                cl_labels_p = cl_labels_p.reshape(B, Q_p)
+
                 cl_labels_e = cl_labels_e[:, self.keep_class_dim_e]
+                cl_labels_p = cl_labels_p[:, self.keep_class_dim_e]
+
                 cl_labels_e = cl_labels_e.reshape(-1)
+                cl_labels_p = cl_labels_p.reshape(-1)
+
                 ll_e = ll_e.reshape(B, Q_e, -1)
+                ll_p = ll_p.reshape(B, Q_p, -1)
+
                 ll_e = ll_e[:, self.keep_class_dim_e, :]
                 ll_e = ll_e.reshape(B * (len(self.keep_class_dim_e)), -1)
-        x_e = self.classifier_e(out_e).transpose(0, 1)  # []
+                ll_p = ll_p.reshape(B * Q_p, -1)
         
+        # if self.use_pe_cl:
+        #     pe_e_ = self.pe_fc_e_(out_e)
+        #     pe_p_ = self.pe_fc_p_(out_p)
+        #     pe_logits_ = torch.bmm(pe_e_.transpose(0, 1), pe_p_.transpose(0, 1).transpose(1, 2)).transpose(1, 2) # B, 51, 75
+        #     pe_logits_ = pe_logits_.reshape(pe_logits_.shape[0]*pe_logits_.shape[1]*pe_logits_.shape[2], -1)
+        #     loss_pe += F.binary_cross_entropy_with_logits(pe_logits_.float(), matrix_zero.float())
+        # else:
+        #     loss_pe += torch.tensor(0)
+
+        x_e = self.classifier_e(out_e).transpose(0, 1)  # []
+        x_p = self.classifier_p(out_p).transpose(0, 1)  # B query Atributes
 
         if exclude_class == True:
             labels_e = labels_e[:, self.keep_class_dim_e]
@@ -452,20 +485,14 @@ class MedKLIP(nn.Module):
             logits_e = logits_e[Mask_e]
             logits_p = logits_p[Mask_p]
             loss_ce_e = F.cross_entropy(logits_e, labels_e[:, 0])
-            if self.use_position:
-                loss_ce_p = F.cross_entropy(logits_p, labels_p[:, 0])
-            else:
-                loss_ce_p = torch.tensor(0)
+            loss_ce_p = F.cross_entropy(logits_p, labels_p[:, 0])
             if no_cl == False:
                 cl_labels_e = cl_labels_e[cl_mask_e].long()
                 cl_labels_p = cl_labels_p[cl_mask_p].long()
                 ll_e = ll_e[cl_mask_e]
                 ll_p = ll_p[cl_mask_p]
                 loss_cl_e = F.cross_entropy(ll_e, cl_labels_e)
-                if self.use_position:
-                    loss_cl_p = F.cross_entropy(ll_p, cl_labels_p)
-                else:
-                    loss_cl_p = torch.tensor(0)
+                loss_cl_p = F.cross_entropy(ll_p, cl_labels_p)
                 loss_ce = loss_ce_e + loss_ce_p
                 loss_cl = loss_cl_e + loss_cl_p
                 loss = loss_ce + loss_cl + loss_pe

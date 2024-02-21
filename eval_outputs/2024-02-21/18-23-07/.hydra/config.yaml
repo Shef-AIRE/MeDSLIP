@@ -1,0 +1,74 @@
+base:
+  image_size: 224
+test:
+  checkpoint: ???
+  seed: 1234
+data_test:
+  vindr_cxr:
+    name: vindr_cxr
+    data_type: image_classification
+    data_path: datasets/vindr_test.csv
+    n_class: 18
+  rsna_pneumonia:
+    name: rsna_pneumonia
+    data_type: image_classification
+    data_path: datasets/rsna_test.csv
+    n_class: 1
+  siim_pneumothorax:
+    name: siim_pneumothorax
+    data_type: image_classification
+    data_path: datasets/siim_test.csv
+    n_class: 1
+  chexpert5x200:
+    name: chexpert5x200
+    data_type: imagetext_eval
+    data_path: datasets/chexpert5x200.csv
+  mimic_cxr:
+    name: mimic_cxr
+    data_type: imagetext_eval
+    data_path: datasets/mimic_cxr_test.csv
+  openi:
+    name: openi
+    data_type: imagetext_eval
+    data_path: datasets/openi_test.csv
+dataloader:
+  train:
+    pin_memory: true
+    shuffle: true
+    drop_last: true
+    num_workers: 8
+    prefetch_factor: 16
+    batch_size: 128
+  valid:
+    pin_memory: true
+    shuffle: false
+    drop_last: false
+    num_workers: 8
+    prefetch_factor: 16
+    batch_size: 128
+  test:
+    pin_memory: true
+    shuffle: false
+    drop_last: false
+    num_workers: 16
+    batch_size: 128
+transform:
+  train:
+    ResizedCrop:
+      size: ${base.image_size}
+    CenterCrop:
+      size: ${base.image_size}
+  valid:
+    Resize:
+      size: ${base.image_size}
+    CenterCrop:
+      size: ${base.image_size}
+  test:
+    Resize:
+      size: ${base.image_size}
+    CenterCrop:
+      size: ${base.image_size}
+tokenizer:
+  source: huggingface
+  pretrained_model_name_or_path: emilyalsentzer/Bio_ClinicalBERT
+  cache_dir: huggingface/tokenizers
