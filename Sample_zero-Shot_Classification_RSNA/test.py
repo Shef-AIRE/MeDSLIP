@@ -224,8 +224,9 @@ def main(args, config):
     gt = gt.to(device)
     pred = torch.FloatTensor()
     pred = pred.to(device)
-    for i, sample in tqdm(test_dataloader):
-        tqdm.prefix = f"Testing: Epoch {i}"
+    loop = tqdm(test_dataloader)
+    for i, sample in enumerate(loop):
+        loop.set_description(f"Testing: {i+1}/{len(test_dataloader)}")
         images = sample["image"].to(device)
         batch_size = images.shape[0]
         labels = sample["label"].to(device)

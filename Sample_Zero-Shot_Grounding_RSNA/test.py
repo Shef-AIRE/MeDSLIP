@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader
 from dataset.dataset_RSNA import RSNA2018_Dataset
 from models.model_MedKLIP import MedKLIP
 from models.tokenization_bert import BertTokenizer
+from tqdm import tqdm
 
 original_class = [
     "normal",
@@ -102,7 +103,7 @@ def get_tokenizer(tokenizer, target_text):
     return target_tokenizer
 
 
-def score_cal(labels, seg_map, pred_map, threshold=0.0095):
+def score_cal(labels, seg_map, pred_map, threshold=0.005):
     """
     labels B * 1
     seg_map B *H * W
@@ -154,7 +155,7 @@ def main(args, config):
     )
     json_book = json.load(open(config["disease_book"], "r"))
     disease_book = [json_book[i] for i in json_book]
-    json_book = json.load(open(config["anatomy_book"], "r"))
+    # json_book = json.load(open(config["anatomy_book"], "r"))
     ana_list = [
             "trachea",
             "left_hilar",
@@ -239,8 +240,9 @@ def main(args, config):
     mass_score_A = mass_score_A.to(device)
     total_num_A = 0
     point_num_A = 0
-
-    for i, sample in enumerate(test_dataloader):
+    loop = tqdm(test_dataloader)
+    for i, sample in enumerate(loop):
+        loop.set_description(f"Testing: {i+1}/{len(test_dataloader)}")
         images = sample["image"].to(device)
         image_path = sample["image_path"]
         batch_size = images.shape[0]
@@ -265,7 +267,7 @@ def main(args, config):
             feature_e = (
                 features_e[:, original_class.index("pneumonia"), :]
             )
-            threshold = 0.06
+            threshold = 0.01
             if args.use_ws_p:
                 pred_map = pred_map.unsqueeze(1)
                 # feature_e = feature_e.unsqueeze(1)

@@ -20,6 +20,8 @@ from models.model_MedKLIP import MedKLIP
 from dataset.dataset import Chestxray14_Dataset
 from models.tokenization_bert import BertTokenizer
 
+from tqdm import tqdm
+
 chexray14_cls = [
     "atelectasis",
     "cardiomegaly",
@@ -201,7 +203,9 @@ def test(args, config):
 
     print("Start testing")
     model.eval()
-    for i, sample in enumerate(test_dataloader):
+    loop = tqdm(test_dataloader)
+    for i, sample in enumerate(loop):
+        loop.set_description(f"Testing: {i+1}/{len(test_dataloader)}")
         image = sample["image"]
         label = sample["label"][:, chexray14_mapping].float().to(device)
         gt = torch.cat((gt, label), 0)
@@ -245,7 +249,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="Sample_zero-shot_Classification_CXR14/configs/MedKLIP_config.yaml")
     
-    parser.add_argument("--model_path", default="/home/wenrui/Projects/MIMIC/MedKLIP/runs/dual_stream/2024-02-20_10-24-25/checkpoint_33.pth")
+    parser.add_argument("--model_path", default="/home/wenrui/Projects/MIMIC/MedKLIP/runs/dual_stream/2024-02-20_10-24-25/checkpoint_47.pth")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--gpu", type=str, default="0", help="gpu")
     args = parser.parse_args()
