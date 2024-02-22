@@ -20,6 +20,8 @@ from test_res_ft import test
 from dataset.dataset_siim_acr import SIIM_ACR_Dataset
 from scheduler import create_scheduler
 from optim import create_optimizer
+import warnings
+warnings.filterwarnings("ignore")
 
 
 def train(
@@ -111,11 +113,11 @@ def main(args, config):
 
     #### Dataset ####
     print("Creating dataset")
-    train_dataset = SIIM_ACR_Dataset(config["train_file"])
+    train_dataset = SIIM_ACR_Dataset(config["train_file"], percentage=config["percentage"])
     train_dataloader = DataLoader(
         train_dataset,
         batch_size=config["batch_size"],
-        num_workers=4,
+        num_workers=30,
         pin_memory=True,
         sampler=None,
         shuffle=True,
@@ -127,15 +129,16 @@ def main(args, config):
     val_dataloader = DataLoader(
         val_dataset,
         batch_size=config["batch_size"],
-        num_workers=4,
+        num_workers=30,
         pin_memory=True,
         sampler=None,
         shuffle=False,
         collate_fn=None,
         drop_last=False,
     )
+    print(len(train_dataset), len(val_dataset))
 
-    model = ModelRes_ft(res_base_model="resnet50", out_size=1)
+    model = ModelRes_ft(res_base_model="resnet50", out_size=1, use_base=args.use_base)  
     model = nn.DataParallel(
         model, device_ids=[i for i in range(torch.cuda.device_count())]
     )
@@ -169,6 +172,7 @@ def main(args, config):
     start_time = time.time()
 
     best_val_loss = 10.0
+    best_test_auc = 0.0
     writer = SummaryWriter(os.path.join(args.output_dir, "log"))
     for epoch in range(start_epoch, max_epoch):
         if epoch > 0:
@@ -215,8 +219,11 @@ def main(args, config):
 
             with open(os.path.join(args.output_dir, "log.txt"), "a") as f:
                 f.write(json.dumps(log_stats) + "\n")
-
-        if val_loss < best_val_loss:
+        
+        # print(best_val_loss, val_loss)
+        test_auc = test(args, config)
+        print(best_test_auc, test_auc)
+        if test_auc > best_test_auc:
             save_obj = {
                 "model": model.state_dict(),
                 "optimizer": optimizer.state_dict(),
@@ -224,10 +231,11 @@ def main(args, config):
                 "config": config,
                 "epoch": epoch,
             }
-            torch.save(save_obj, os.path.join(args.output_dir, "best_valid.pth"))
-            best_val_loss = val_loss
-            args.model_path = os.path.join(args.output_dir, "best_valid.pth")
-            test_auc = test(args, config)
+            torch.save(save_obj, os.path.join(args.output_dir, "best_test.pth"))
+            # best_val_loss = val_loss
+            best_test_auc = test_auc
+            args.model_path = os.path.join(args.output_dir, "checkpoint_state.pth")
+            
             with open(os.path.join(args.output_dir, "log.txt"), "a") as f:
                 f.write(
                     "The average AUROC is {AUROC_avg:.4f}".format(AUROC_avg=test_auc)
@@ -257,13 +265,16 @@ if __name__ == "__main__":
     parser.add_argument("--config", default="/home/wenrui/Projects/MIMIC/MedKLIP/Sample_Finetuning_SIIMACR/I1_classification/configs/Res_train.yaml")
     parser.add_argument("--checkpoint", default="")
     parser.add_argument("--model_path", default="")
-    parser.add_argument("--pretrain_path", default="/home/wenrui/Projects/MIMIC/MedKLIP/runs/dual_stream/2024-02-14_22-44-14/checkpoint_64.pth")
+    parser.add_argument("--pretrain_path", default="/home/wenrui/Projects/MIMIC/MedKLIP/setting/checkpoint_final.pth")
     parser.add_argument("--output_dir", default="Sample_Finetuning_SIIMACR/I1_classification/runs/")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--gpu", type=str, default="0", help="gpu")
+    parser.add_argument("--use_base", type=bool, default=True)
     args = parser.parse_args()
 
     config = yaml.load(open(args.config, "r"), Loader=yaml.Loader)
+    args.output_dir = os.path.join(args.output_dir, str(config["percentage"]))
+    args.model_path = os.path.join(args.output_dir, "checkpoint_state.pth")
 
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
 

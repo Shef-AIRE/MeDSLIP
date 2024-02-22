@@ -1,6 +1,6 @@
-train_file: 'Path/To/Train.csv'
-valid_file: 'Path/To/Valid.csv'
-test_file: 'Path/To/test.csv'
+train_file: '/home/wenrui/Projects/MIMIC/Data/SIIM-ACR/archive/train.csv'
+valid_file: '/home/wenrui/Projects/MIMIC/Data/SIIM-ACR/archive/test_filtered.csv'
+test_file: '/home/wenrui/Projects/MIMIC/Data/SIIM-ACR/archive/test_filtered.csv'
 
 image_res: 224
 batch_size: 64

@@ -135,7 +135,7 @@ def main(args, config):
     test_dataloader = DataLoader(
         test_dataset,
         batch_size=config["test_batch_size"],
-        num_workers=2,
+        num_workers=8,
         pin_memory=True,
         sampler=None,
         shuffle=False,
