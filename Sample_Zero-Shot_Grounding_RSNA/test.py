@@ -267,7 +267,7 @@ def main(args, config):
             feature_e = (
                 features_e[:, original_class.index("pneumonia"), :]
             )
-            threshold = 0.01
+            threshold = 0.008
             if args.use_ws_p:
                 pred_map = pred_map.unsqueeze(1)
                 # feature_e = feature_e.unsqueeze(1)
