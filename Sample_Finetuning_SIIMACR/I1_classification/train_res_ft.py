@@ -265,7 +265,7 @@ if __name__ == "__main__":
     parser.add_argument("--config", default="/home/wenrui/Projects/MIMIC/MedKLIP/Sample_Finetuning_SIIMACR/I1_classification/configs/Res_train.yaml")
     parser.add_argument("--checkpoint", default="")
     parser.add_argument("--model_path", default="")
-    parser.add_argument("--pretrain_path", default="/home/wenrui/Projects/MIMIC/MedKLIP/setting/checkpoint_final.pth")
+    parser.add_argument("--pretrain_path", default="/home/wenrui/Projects/MIMIC/MedKLIP/runs/baseline/checkpoint_state.pth")
     parser.add_argument("--output_dir", default="Sample_Finetuning_SIIMACR/I1_classification/runs/")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--gpu", type=str, default="0", help="gpu")
@@ -274,6 +274,8 @@ if __name__ == "__main__":
 
     config = yaml.load(open(args.config, "r"), Loader=yaml.Loader)
     args.output_dir = os.path.join(args.output_dir, str(config["percentage"]))
+    from datetime import datetime
+    args.output_dir = os.path.join(args.output_dir, datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
     args.model_path = os.path.join(args.output_dir, "checkpoint_state.pth")
 
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)

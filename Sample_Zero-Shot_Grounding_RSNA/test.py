@@ -146,7 +146,7 @@ def main(args, config):
     test_dataloader = DataLoader(
         test_dataset,
         batch_size=config["test_batch_size"],
-        num_workers=8,
+        num_workers=30,
         pin_memory=True,
         sampler=None,
         shuffle=False,
@@ -267,7 +267,7 @@ def main(args, config):
             feature_e = (
                 features_e[:, original_class.index("pneumonia"), :]
             )
-            threshold = 0.008
+            threshold = 0
             if args.use_ws_p:
                 pred_map = pred_map.unsqueeze(1)
                 # feature_e = feature_e.unsqueeze(1)
@@ -323,7 +323,7 @@ def main(args, config):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="Sample_Zero-Shot_Grounding_RSNA/configs/MedKLIP_config.yaml")
-    parser.add_argument("--checkpoint", default="/home/wenrui/Projects/MIMIC/MedKLIP/runs/dual_stream/2024-02-20_10-24-25/checkpoint_33.pth")
+    parser.add_argument("--checkpoint", default="runs/dual_stream/2024-02-14_22-44-14/checkpoint_64.pth")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--gpu", type=str, default="0", help="gpu")
     parser.add_argument("--use_ws_p", type=bool, default=False, help="use ws_p")
