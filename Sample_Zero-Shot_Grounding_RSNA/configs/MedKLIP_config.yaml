@@ -1,5 +1,5 @@
-# test_file: '/home/wenrui/Projects/MIMIC/MedKLIP/setting/rsna_test.csv'
-test_file: '/home/wenrui/Projects/MIMIC/MedKLIP/Sample_Zero-Shot_Grounding_RSNA/data_sample/test.csv'
+test_file: '/home/wenrui/Projects/MIMIC/MedKLIP/setting/rsna_test.csv'
+# test_file: '/home/wenrui/Projects/MIMIC/MedKLIP/Sample_Zero-Shot_Grounding_RSNA/data_sample/test.csv'
 disease_book: '/home/wenrui/Projects/MIMIC/MedKLIP/Sample_Zero-Shot_Grounding_RSNA/observation explanation.json'
 # anatomy_book: '/home/wenrui/Projects/MIMIC/MedKLIP/Sample_Zero-Shot_Grounding_RSNA/position description.json'
 

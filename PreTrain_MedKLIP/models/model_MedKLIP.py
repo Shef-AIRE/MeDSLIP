@@ -52,7 +52,7 @@ class MedKLIP(nn.Module):
         if self.use_ana_layer:
             self.ana_embedding_layer = nn.Linear(768, 256)
         self.cl_fc_e = nn.Linear(256, 768)
-        self.pe_fc_e = nn.Linear(256, 768)
+        # self.pe_fc_e = nn.Linear(256, 768)
         # self.pe_fc_e_ = nn.Linear(256, 768)
 
         
@@ -165,7 +165,7 @@ class MedKLIP(nn.Module):
         self.res_l2_e = nn.Linear(num_ftrs, self.d_model)
         if self.use_position:
             self.cl_fc_p = nn.Linear(256, 768)
-            self.pe_fc_p = nn.Linear(256, 768)
+            # self.pe_fc_p = nn.Linear(256, 768)
             self.res_l1_p = nn.Linear(num_ftrs, num_ftrs)
             self.res_l2_p = nn.Linear(num_ftrs, self.d_model)
         if self.use_mask:
@@ -271,6 +271,7 @@ class MedKLIP(nn.Module):
         sample_index_e=None,
         sample_index_p=None,
         is_train=True,
+        text_gen=False,
         no_cl=False,
         exclude_class=False,
     ):
@@ -312,6 +313,8 @@ class MedKLIP(nn.Module):
             pe_p = features_p
 
             pe_logits = torch.bmm(pe_e.transpose(0, 1), pe_p.transpose(0, 1).transpose(1, 2)).transpose(1, 2) # B, 51, 75
+            if text_gen:
+                output_logits = pe_logits
             matrix_zero = matrix
             if not self.use_neg:
                 # matrix_zero = (matrix_zero >=0)
@@ -453,15 +456,6 @@ class MedKLIP(nn.Module):
                 ll_e = ll_e[:, self.keep_class_dim_e, :]
                 ll_e = ll_e.reshape(B * (len(self.keep_class_dim_e)), -1)
                 ll_p = ll_p.reshape(B * Q_p, -1)
-        
-        # if self.use_pe_cl:
-        #     pe_e_ = self.pe_fc_e_(out_e)
-        #     pe_p_ = self.pe_fc_p_(out_p)
-        #     pe_logits_ = torch.bmm(pe_e_.transpose(0, 1), pe_p_.transpose(0, 1).transpose(1, 2)).transpose(1, 2) # B, 51, 75
-        #     pe_logits_ = pe_logits_.reshape(pe_logits_.shape[0]*pe_logits_.shape[1]*pe_logits_.shape[2], -1)
-        #     loss_pe += F.binary_cross_entropy_with_logits(pe_logits_.float(), matrix_zero.float())
-        # else:
-        #     loss_pe += torch.tensor(0)
 
         x_e = self.classifier_e(out_e).transpose(0, 1)  # []
         x_p = self.classifier_p(out_p).transpose(0, 1)  # B query Atributes
@@ -502,7 +496,10 @@ class MedKLIP(nn.Module):
         else:
             loss = 0
         if is_train == True:
-            return loss, loss_ce_e, loss_cl_e, loss_ce_p, loss_cl_p, loss_pe
+            if text_gen:
+                return loss, x_e, ws_e, x_p, ws_p, output_logits
+            else:
+                return loss, loss_ce_e, loss_cl_e, loss_ce_p, loss_cl_p, loss_pe
         else:
             return loss, x_e, ws_e, x_p, ws_p
 
