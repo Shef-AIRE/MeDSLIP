@@ -1,4 +1,4 @@
-test_file: '/home/wenrui/Projects/MIMIC/MedKLIP/Sample_zero-shot_Classification_CXR14/data/miccai2023_nih-cxr-lt_labels_all.csv'
+test_file: '/home/wenrui/Projects/MIMIC/MedKLIP/Sample_zero-shot_Classification_CXR14/data/miccai2023_nih-cxr-lt_labels_val.csv'
 disease_book: 'Sample_zero-shot_Classification_CXR14/observation explanation.json'
 
 image_res: 224
