@@ -1,6 +1,6 @@
-train_file: '/home/wenrui/Projects/MIMIC/Data/SIIM-CLS/siim-acr-pneumothorax/stage_1_train_images.csv'
-valid_file: '/home/wenrui/Projects/MIMIC/Data/SIIM-CLS/siim-acr-pneumothorax/stage_1_test_images.csv'
-test_file: '/home/wenrui/Projects/MIMIC/Data/SIIM-CLS/siim-acr-pneumothorax/stage_1_test_images.csv'
+train_file: 'SIIM-CLS/siim-acr-pneumothorax/stage_1_train_images.csv'
+valid_file: 'SIIM-CLS/siim-acr-pneumothorax/stage_1_test_images.csv'
+test_file: 'SIIM-CLS/siim-acr-pneumothorax/stage_1_test_images.csv'
 
 image_res: 224
 batch_size: 64
