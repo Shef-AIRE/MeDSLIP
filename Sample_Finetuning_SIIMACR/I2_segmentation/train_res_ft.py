@@ -20,6 +20,9 @@ from test_res_ft import test
 from dataset.dataset_siim_acr import SIIM_ACR_Dataset
 from scheduler import create_scheduler
 from optim import create_optimizer
+from torchvision import models
+import warnings
+warnings.filterwarnings("ignore")
 
 
 def train(
@@ -112,11 +115,11 @@ def main(args, config):
 
     #### Dataset ####
     print("Creating dataset")
-    train_dataset = SIIM_ACR_Dataset(config["train_file"])
+    train_dataset = SIIM_ACR_Dataset(config["train_file"], percentage=config["percentage"])
     train_dataloader = DataLoader(
         train_dataset,
         batch_size=config["batch_size"],
-        num_workers=4,
+        num_workers=30,
         pin_memory=True,
         sampler=None,
         shuffle=True,
@@ -128,7 +131,7 @@ def main(args, config):
     val_dataloader = DataLoader(
         val_dataset,
         batch_size=config["batch_size"],
-        num_workers=4,
+        num_workers=30,
         pin_memory=True,
         sampler=None,
         shuffle=True,
@@ -137,7 +140,7 @@ def main(args, config):
     )
 
     model = ModelResUNet_ft(
-        res_base_model="resnet50", out_size=1, imagenet_pretrain=args.imagenet_pretrain
+        res_base_model="resnet50", out_size=1, imagenet_pretrain=models.ResNet50_Weights.DEFAULT
     )
     model = nn.DataParallel(
         model, device_ids=[i for i in range(torch.cuda.device_count())]
@@ -159,7 +162,7 @@ def main(args, config):
         start_epoch = checkpoint["epoch"] + 1
         model.load_state_dict(state_dict)
         print("load checkpoint from %s" % args.checkpoint)
-    elif args.pretrained:
+    elif args.pretrain_path:
         checkpoint = torch.load(args.pretrain_path, map_location="cpu")
         state_dict = checkpoint["model"]
         model_dict = model.state_dict()
@@ -172,7 +175,8 @@ def main(args, config):
     print("Start training")
     start_time = time.time()
 
-    best_val_loss = 10.0
+    best_test_IoU_score = 0
+    best_dice_score = 0
     writer = SummaryWriter(os.path.join(args.output_dir, "log"))
     for epoch in range(start_epoch, max_epoch):
         if epoch > 0:
@@ -216,11 +220,15 @@ def main(args, config):
                 "epoch": epoch,
             }
             torch.save(save_obj, os.path.join(args.output_dir, "checkpoint_state.pth"))
+            args.model_path = os.path.join(args.output_dir, "checkpoint_state.pth")
 
             with open(os.path.join(args.output_dir, "log.txt"), "a") as f:
                 f.write(json.dumps(log_stats) + "\n")
 
-        if val_loss < best_val_loss:
+        dice_score, IoU_score = test(args, config)
+        print(IoU_score, best_test_IoU_score, dice_score, best_dice_score)
+
+        if dice_score > best_dice_score:
             save_obj = {
                 "model": model.state_dict(),
                 "optimizer": optimizer.state_dict(),
@@ -229,9 +237,10 @@ def main(args, config):
                 "epoch": epoch,
             }
             torch.save(save_obj, os.path.join(args.output_dir, "best_valid.pth"))
-            best_val_loss = val_loss
-            args.model_path = os.path.join(args.output_dir, "best_valid.pth")
-            dice_score, IoU_score = test(args, config)
+            best_dice_score = dice_score
+            best_test_IoU_score = IoU_score
+            
+            
             with open(os.path.join(args.output_dir, "log.txt"), "a") as f:
                 f.write("The dice score is {dice:.4f}".format(dice=dice_score) + "\n")
                 f.write("The iou score is {iou:.4f}".format(iou=IoU_score) + "\n")
@@ -256,17 +265,19 @@ def main(args, config):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="Path/To/Res_train.yaml")
+    parser.add_argument("--config", default="/home/wenrui/Projects/MIMIC/MeDSLIP/Sample_Finetuning_SIIMACR/I2_segmentation/configs/Res_train.yaml")
     parser.add_argument("--checkpoint", default="")
     parser.add_argument("--model_path", default="")
-    parser.add_argument("--pretrain_path", default="Path/To/checkpoint.pth")
-    parser.add_argument("--output_dir", default="Path/To/Outputdir")
+    parser.add_argument("--pretrain_path", default="/home/wenrui/Projects/MIMIC/MeDSLIP/runs/baseline/checkpoint_state.pth")
+    parser.add_argument("--output_dir", default="/home/wenrui/Projects/MIMIC/MeDSLIP/Sample_Finetuning_SIIMACR/I2_segmentation/runs")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--gpu", type=str, default="0", help="gpu")
     args = parser.parse_args()
 
     config = yaml.load(open(args.config, "r"), Loader=yaml.Loader)
-
+    from datetime import datetime
+    args.output_dir = os.path.join(args.output_dir, str(config['percentage']), datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
+    args.model_path = args.model_path if args.model_path else os.path.join(args.output_dir, "best_valid.pth")
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
 
     yaml.dump(config, open(os.path.join(args.output_dir, "config.yaml"), "w"))

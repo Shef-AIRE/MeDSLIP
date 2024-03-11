@@ -34,6 +34,7 @@ def compute_AUCs(gt, pred, n_class):
     AUROCs = []
     gt_np = gt.cpu().numpy()
     pred_np = pred.cpu().numpy()
+    # pr
     for i in range(n_class):
         AUROCs.append(roc_auc_score(gt_np[:, i], pred_np[:, i]))
     return AUROCs
@@ -48,7 +49,7 @@ def test(args, config):
     test_dataloader = DataLoader(
         test_dataset,
         batch_size=config["test_batch_size"],
-        num_workers=4,
+        num_workers=8,
         pin_memory=True,
         sampler=None,
         shuffle=False,
@@ -107,7 +108,7 @@ def test(args, config):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="Path/To/Res_train.yaml")
+    parser.add_argument("--config", default="/home/wenrui/Projects/MIMIC/MeDSLIP/Sample_Finetuning_SIIMACR/I1_classification/configs/Res_train.yaml")
     parser.add_argument("--checkpoint", default="")
     parser.add_argument("--model_path", default="Path/To/best_valid.pth")
     parser.add_argument("--device", default="cuda")

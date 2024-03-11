@@ -7,6 +7,8 @@ import time
 import datetime
 import json
 from pathlib import Path
+import warnings
+warnings.filterwarnings("ignore")
 
 import torch
 import torch.nn as nn
@@ -14,9 +16,11 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from sklearn.metrics import roc_auc_score, precision_recall_curve, accuracy_score
 
-from models.model_MedKLIP import MedKLIP
+from models.model_MeDSLIP import MeDSLIP
 from dataset.dataset import Chestxray14_Dataset
 from models.tokenization_bert import BertTokenizer
+
+from tqdm import tqdm
 
 chexray14_cls = [
     "atelectasis",
@@ -165,7 +169,7 @@ def test(args, config):
     test_dataloader = DataLoader(
         test_dataset,
         batch_size=config["test_batch_size"],
-        num_workers=4,
+        num_workers=30,
         pin_memory=True,
         sampler=None,
         shuffle=True,
@@ -180,7 +184,7 @@ def test(args, config):
     disease_book_tokenizer = get_tokenizer(tokenizer, disease_book).to(device)
 
     print("Creating model")
-    model = MedKLIP(config, disease_book_tokenizer)
+    model = MeDSLIP(config, disease_book_tokenizer)
     model = nn.DataParallel(
         model, device_ids=[i for i in range(torch.cuda.device_count())]
     )
@@ -199,7 +203,9 @@ def test(args, config):
 
     print("Start testing")
     model.eval()
-    for i, sample in enumerate(test_dataloader):
+    loop = tqdm(test_dataloader)
+    for i, sample in enumerate(loop):
+        loop.set_description(f"Testing: {i+1}/{len(test_dataloader)}")
         image = sample["image"]
         label = sample["label"][:, chexray14_mapping].float().to(device)
         gt = torch.cat((gt, label), 0)
@@ -241,14 +247,9 @@ def test(args, config):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--config",
-        default="/home/wenrui/Projects/MIMIC/MedKLIP/Sample_zero-shot_Classification_CXR14/configs/MedKLIP_config.yaml",
-    )
-    parser.add_argument(
-        "--model_path",
-        default="/home/wenrui/Projects/MIMIC/MedKLIP/runs/12-22-2023/checkpoint_state.pth",
-    )
+    parser.add_argument("--config", default="Sample_zero-shot_Classification_CXR14/configs/MeDSLIP_config.yaml")
+    
+    parser.add_argument("--model_path", default="/home/wenrui/Projects/MIMIC/MeDSLIP/runs/dual_stream/2024-02-14_22-44-14/checkpoint_64.pth")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--gpu", type=str, default="0", help="gpu")
     args = parser.parse_args()

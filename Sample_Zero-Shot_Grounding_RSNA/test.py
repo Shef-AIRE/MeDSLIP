@@ -7,8 +7,9 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from dataset.dataset_RSNA import RSNA2018_Dataset
-from models.model_MedKLIP import MedKLIP
+from models.model_MeDSLIP import MeDSLIP
 from models.tokenization_bert import BertTokenizer
+from tqdm import tqdm
 
 original_class = [
     "normal",
@@ -102,7 +103,7 @@ def get_tokenizer(tokenizer, target_text):
     return target_tokenizer
 
 
-def score_cal(labels, seg_map, pred_map):
+def score_cal(labels, seg_map, pred_map, threshold=0.005):
     """
     labels B * 1
     seg_map B *H * W
@@ -113,7 +114,7 @@ def score_cal(labels, seg_map, pred_map):
     mask = (labels == 1).squeeze()
     seg_map = seg_map[mask, :, :].reshape(total_num, -1)
     pred_map = pred_map[mask, :, :].reshape(total_num, -1)
-    one_hot_map = pred_map > 0.008
+    one_hot_map = pred_map > threshold
     dot_product = (seg_map * one_hot_map).reshape(total_num, -1)
 
     max_number = torch.max(pred_map, dim=-1)[0]
@@ -145,7 +146,7 @@ def main(args, config):
     test_dataloader = DataLoader(
         test_dataset,
         batch_size=config["test_batch_size"],
-        num_workers=0,
+        num_workers=30,
         pin_memory=True,
         sampler=None,
         shuffle=False,
@@ -154,9 +155,8 @@ def main(args, config):
     )
     json_book = json.load(open(config["disease_book"], "r"))
     disease_book = [json_book[i] for i in json_book]
-    ana_book = [
-        "It is located at " + i
-        for i in [
+    # json_book = json.load(open(config["anatomy_book"], "r"))
+    ana_list = [
             "trachea",
             "left_hilar",
             "right_hilar",
@@ -209,13 +209,18 @@ def main(args, config):
             "unspecified",
             "other",
         ]
-    ]
+    ana_book = []
+    ana_book_simple = []
+    for i in ana_list:
+        ana_book.append(
+            "It is located at " + i + '. '
+        )
     tokenizer = BertTokenizer.from_pretrained(config["text_encoder"])
     ana_book_tokenizer = get_tokenizer(tokenizer, ana_book).to(device)
     disease_book_tokenizer = get_tokenizer(tokenizer, disease_book).to(device)
 
     print("Creating model")
-    model = MedKLIP(config, ana_book_tokenizer, disease_book_tokenizer, mode="train")
+    model = MeDSLIP(config, ana_book_tokenizer, disease_book_tokenizer, mode="train")
     model = nn.DataParallel(
         model, device_ids=[i for i in range(torch.cuda.device_count())]
     )
@@ -223,7 +228,7 @@ def main(args, config):
 
     checkpoint = torch.load(args.checkpoint, map_location="cpu")
     state_dict = checkpoint["model"]
-    model.load_state_dict(state_dict)
+    model.load_state_dict(state_dict, strict=False)
     print("load checkpoint from %s" % args.checkpoint)
 
     print("Start testing")
@@ -235,8 +240,9 @@ def main(args, config):
     mass_score_A = mass_score_A.to(device)
     total_num_A = 0
     point_num_A = 0
-
-    for i, sample in enumerate(test_dataloader):
+    loop = tqdm(test_dataloader)
+    for i, sample in enumerate(loop):
+        loop.set_description(f"Testing: {i+1}/{len(test_dataloader)}")
         images = sample["image"].to(device)
         image_path = sample["image_path"]
         batch_size = images.shape[0]
@@ -244,15 +250,44 @@ def main(args, config):
         seg_map = sample["seg_map"][:, 0, :, :].to(device)  # B C H W
 
         with torch.no_grad():
-            _, ws = model(
+            _, _, ws_e, ws_p, features_e, features_p = model(
                 images, labels, is_train=False
             )  # batch_size,batch_size,image_patch,text_patch
-            ws = (ws[-4] + ws[-3] + ws[-2] + ws[-1]) / 4
-            ws = ws.reshape(batch_size, ws.shape[1], 14, 14)
-            pred_map = (
-                ws[:, original_class.index("pneumonia"), :, :].detach().cpu().numpy()
-            )
+            features_e = features_e.transpose(0, 1)
+            features_p = features_p.transpose(0, 1)
+            ws_e = (ws_e[-4] + ws_e[-3] + ws_e[-2] + ws_e[-1]) / 4
+            ws_p = (ws_p[-4] + ws_p[-3] + ws_p[-2] + ws_p[-1]) / 4
 
+            # print(ws_p[0].sum(), ws_p[0].max(), ws_p[0].min())
+
+            # ws_e = ws_e.reshape(batch_size, ws_e.shape[1], 14, 14)
+            pred_map = (
+                ws_e[:, original_class.index("pneumonia"), :] # .detach().cpu().numpy()
+            )
+            feature_e = (
+                features_e[:, original_class.index("pneumonia"), :]
+            )
+            threshold = 0
+            if args.use_ws_p:
+                pred_map = pred_map.unsqueeze(1)
+                # feature_e = feature_e.unsqueeze(1)
+                # similarity = torch.bmm(feature_e, features_p.transpose(1, 2)).squeeze(1)
+                # ids = torch.argmax(similarity, dim=1)
+                # temp = torch.zeros(batch_size, ws_p.shape[2]).to(device)    
+                # for i in range(batch_size):
+                #     temp[i] = ws_p[i, ids[i]]
+                
+                # pred_map = (pred_map.squeeze() * temp)
+                pred_map = pred_map.repeat(1, ws_p.shape[1], 1)
+                pred_map = (pred_map * ws_p).mean(axis=1)
+                threshold = 0.01
+
+                
+            pred_map = pred_map / torch.max(pred_map)
+
+            pred_map = pred_map.reshape(batch_size, 14, 14).detach().cpu().numpy()
+            
+            
             pred_map = torch.from_numpy(
                 pred_map.repeat(16, axis=1).repeat(16, axis=2)
             ).to(
@@ -260,7 +295,7 @@ def main(args, config):
             )  # Final Grounding Heatmap
 
             total_num, point_num, mass_score, dice_score = score_cal(
-                labels, seg_map, pred_map
+                labels, seg_map, pred_map, threshold=threshold
             )
             total_num_A = total_num_A + total_num
             point_num_A = point_num_A + point_num
@@ -287,10 +322,12 @@ def main(args, config):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="/Path/To/MedKLIP_config.yaml")
-    parser.add_argument("--model_path", default="/Path/To/checkpoint.pth")
+    parser.add_argument("--config", default="Sample_Zero-Shot_Grounding_RSNA/configs/MeDSLIP_config.yaml")
+    parser.add_argument("--checkpoint", default="runs/dual_stream/2024-02-14_22-44-14/checkpoint_64.pth")
     parser.add_argument("--device", default="cuda")
-    parser.add_argument("--gpu", type=str, default="1", help="gpu")
+    parser.add_argument("--gpu", type=str, default="0", help="gpu")
+    parser.add_argument("--use_ws_p", type=bool, default=False, help="use ws_p")
+
     args = parser.parse_args()
 
     config = yaml.load(open(args.config, "r"), Loader=yaml.Loader)

@@ -1,0 +1,16 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug evaluate_clip.py with checkpoint",
+            "type": "python",
+            "request": "launch",
+            "program": "/home/wenrui/Projects/MIMIC/MedKLIP/baseline/cxr-clip/evaluate_clip.py",
+            "console": "integratedTerminal",
+            "args": [
+                "test.checkpoint=/home/wenrui/Projects/MIMIC/MedKLIP/baseline/cxr-clip/r50_m.tar",
+                "data_test=rsna_pneumonia"
+            ]
+        }
+    ]
+}

@@ -10,18 +10,20 @@ from albumentations.pytorch.transforms import ToTensorV2
 
 
 class SIIM_ACR_Dataset(Dataset):
-    def __init__(self, csv_path, is_train=True):
+    # def __init__(self, csv_path, is_train=True):
+    def __init__(self, csv_path, is_train=True, percentage=0.01):
         data_info = pd.read_csv(csv_path)
         if is_train == True:
-            total_len = int(0.01 * len(data_info))
+            total_len = int(percentage * len(data_info))
             choice_list = np.random.choice(
                 range(len(data_info)), size=total_len, replace=False
             )
-            self.img_path_list = np.asarray(data_info.iloc[:, 0])[choice_list]
+            self.img_path_list = data_info['image_path'][choice_list].tolist()
         else:
-            self.img_path_list = np.asarray(data_info.iloc[:, 0])
-        self.img_root = "/remote-home/share/medical/public/SIIM-ACR/processed_images/"
-        self.seg_root = "/remote-home/share/medical/public/SIIM-ACR/segmentation_masks/"  # We have pre-processed the original SIIM_ACR data, you may change this to fix your data
+            self.img_path_list = data_info['image_path'].tolist()
+
+        self.img_root = "/home/wenrui/Projects/MIMIC/Data/SIIM-CLS/siim-acr-pneumothorax/png_images/"
+        self.seg_root = "/home/wenrui/Projects/MIMIC/Data/SIIM-CLS/siim-acr-pneumothorax/png_masks/"  # We have pre-processed the original SIIM_ACR data, you may change this to fix your data
 
         if is_train:
             self.aug = A.Compose(
@@ -56,12 +58,13 @@ class SIIM_ACR_Dataset(Dataset):
             )
 
     def __getitem__(self, index):
-        img_path = self.img_root + self.img_path_list[index] + ".png"
+        img_path = self.img_root + self.img_path_list[index].split('/')[-1] #+ ".png"
         seg_path = (
-            self.seg_root + self.img_path_list[index] + ".gif"
+            self.seg_root + self.img_path_list[index].split('/')[-1] #+ ".png"
         )  # We have pre-processed the original SIIM_ACR data, you may change this to fix your data
+        # img = PIL.Image.open(img_path).convert("RGB")
         img = np.array(PIL.Image.open(img_path).convert("RGB"))
-        seg_map = np.array(PIL.Image.open(seg_path))[:, :, np.newaxis]
+        seg_map = np.array(PIL.Image.open(seg_path))[:, :, np.newaxis]/255
 
         augmented = self.aug(image=img, mask=seg_map)
         img, seg_map = augmented["image"], augmented["mask"]

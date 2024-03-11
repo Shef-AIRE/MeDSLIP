@@ -2,6 +2,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.models as models
 import torch
+from einops import rearrange
 
 
 class ConvBlock(nn.Module):
@@ -102,14 +103,27 @@ class UpBlockForUNetWithResNet50(nn.Module):
 
 
 class ModelResUNet_ft(nn.Module):
-    def __init__(self, res_base_model, out_size, imagenet_pretrain, linear_probe=False):
+    def __init__(self, res_base_model, out_size, imagenet_pretrain, linear_probe=False, use_base=True):
         super(ModelResUNet_ft, self).__init__()
         self.resnet_dict = {
-            "resnet18": models.resnet18(pretrained=imagenet_pretrain),
-            "resnet50": models.resnet50(pretrained=imagenet_pretrain),
+            # "resnet18": models.resnet18(weights=imagenet_pretrain),
+            "resnet50": models.resnet50(weights=imagenet_pretrain),
         }
         resnet = self._get_res_basemodel(res_base_model)
-        self.res_features = nn.Sequential(*list(resnet.children())[:-3])
+        self.use_base = use_base
+        if not self.use_base:
+            num_ftrs = int(resnet.fc.in_features/2)
+            self.res_features = nn.Sequential(*list(resnet.children())[:-3])
+            self.res_l1_p = nn.Linear(num_ftrs, num_ftrs)
+            self.res_l2_p = nn.Linear(num_ftrs, 256)
+            self.res_l1_e = nn.Linear(num_ftrs, num_ftrs)
+            self.res_l2_e = nn.Linear(num_ftrs, 256)
+
+            self.mask_generator = nn.Linear(num_ftrs, num_ftrs)
+            self.back = nn.Linear(256, num_ftrs)
+            self.last_res = nn.Sequential(*list(resnet.children())[-3:-1])
+        else:
+            self.res_features = nn.Sequential(*list(resnet.children())[:-3])
         self.d = {
             "input": 3,
             "conv1": 64,
@@ -134,6 +148,34 @@ class ModelResUNet_ft(nn.Module):
             "up3": 2,
             "up4": 1,
         }
+        # self.d = {
+        #     "input": 3,
+        #     "conv1": 64,
+        #     "conv2": 256,
+        #     "conv3": 512,
+        #     "conv4": 1024,
+        #     "conv5": 2048,
+        #     "bridge": 2048,
+        #     "up1": 1024,
+        #     "up2": 512,
+        #     "up3": 256,
+        #     "up4": 128,
+        #     "up5": 64,
+        # }
+        # self.downscale_factors = {
+        #     "input": 1,
+        #     "conv1": 2,
+        #     "conv2": 4,
+        #     "conv3": 8,
+        #     "conv4": 16,
+        #     "conv5": 32,
+        #     "bridge": 32,
+        #     "up1": 16,
+        #     "up2": 8,
+        #     "up3": 4,
+        #     "up4": 2,
+        #     "up5": 1,
+        # }
         self.bridge = Bridge(self.d["conv4"], self.d["bridge"])
         self.up_blocks = nn.ModuleList(
             [
@@ -178,6 +220,33 @@ class ModelResUNet_ft(nn.Module):
             raise (
                 "Invalid model name. Check the config file and pass one of: resnet18 or resnet50"
             )
+        
+    def image_encoder(self, xis):
+        # patch features
+        """
+        16 torch.Size([16, 1024, 14, 14])
+        torch.Size([16, 196, 1024])
+        torch.Size([3136, 1024])
+        torch.Size([16, 196, 256])
+        """
+        batch_size = xis.shape[0]
+        res_fea = self.res_features(xis)  # batch_size,feature_size,patch_num,patch_num
+        res_fea = rearrange(res_fea, "b d n1 n2 -> b (n1 n2) d")
+        x = rearrange(res_fea, "b n d -> (b n) d")
+        mask = self.mask_generator(x)
+        x_e = mask * x
+        x_e = self.res_l1_e(x_e)
+        x_e = F.relu(x_e)
+
+        x_e = self.res_l2_e(x_e)
+
+        out_emb_e = rearrange(x_e, "(b n) d -> b n d", b=batch_size)
+        out_emb_e = self.back(out_emb_e)
+        out_emb_e = rearrange(out_emb_e, "b (n1 n2) d -> b d n1 n2", n1=14, n2=14)
+
+        out_emb_e = out_emb_e.squeeze()
+
+        return out_emb_e
 
     def forward(self, img):
         x = img

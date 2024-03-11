@@ -1,6 +1,6 @@
-train_file: 'Path/To/Train.csv'
-valid_file: 'Path/To/Valid.csv'
-test_file: 'Path/To/test.csv'
+train_file: '/home/wenrui/Projects/MIMIC/Data/SIIM-CLS/siim-acr-pneumothorax/stage_1_train_images.csv'
+valid_file: '/home/wenrui/Projects/MIMIC/Data/SIIM-CLS/siim-acr-pneumothorax/stage_1_test_images.csv'
+test_file: '/home/wenrui/Projects/MIMIC/Data/SIIM-CLS/siim-acr-pneumothorax/stage_1_test_images.csv'
 
 image_res: 224
 batch_size: 64
@@ -11,6 +11,7 @@ mlm_probability: 0.15
 queue_size: 8192
 momentum: 0.995
 alpha: 0.4
+percentage: 1.0
 
 optimizer: {opt: adamW, lr: 1e-5, weight_decay: 0.02}
-schedular: {sched: cosine, lr: 1e-5, epochs: 100, min_lr: 1e-5, decay_rate: 1, warmup_lr: 1e-5, warmup_epochs: 20, cooldown_epochs: 0}
+schedular: {sched: cosine, lr: 1e-5, epochs: 200, min_lr: 1e-5, decay_rate: 1, warmup_lr: 1e-5, warmup_epochs: 20, cooldown_epochs: 0}
