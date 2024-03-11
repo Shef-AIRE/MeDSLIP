@@ -1,5 +1,5 @@
-test_file: '/home/wenrui/Projects/MIMIC/MeDSLIP/Sample_zero-Shot_Classification_RSNA/data_sample/test.csv'
-disease_book: '/home/wenrui/Projects/MIMIC/MeDSLIP/Sample_zero-Shot_Classification_RSNA/observation explanation.json'
+test_file: 'Sample_zero-Shot_Classification_RSNA/data_sample/test.csv'
+disease_book: 'Sample_zero-Shot_Classification_RSNA/observation explanation.json'
 
 image_res: 224
 test_batch_size: 64

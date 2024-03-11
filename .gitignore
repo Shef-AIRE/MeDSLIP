@@ -165,3 +165,4 @@ setting/
 runs/
 radgraph-extracting-clinical-entities-and-relations-from-radiology-reports-1.0.0/
 baseline/
+*.ipynb
