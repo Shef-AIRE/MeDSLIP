@@ -179,7 +179,7 @@ def valid(model, data_loader, epoch, device, config, writer):
 
 
 def main(args, config):
-    gpus = torch.cuda.device_count()
+    
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if args.computing == "parallel":
         world_size = torch.distributed.get_world_size()
@@ -299,9 +299,10 @@ def main(args, config):
     print("Creating model")
     model = MeDSLIP(config, anatomy_book_tokenizer, pathology_book_tokenizer, mode="train")
     model = model.to(device)
-    model = nn.parallel.DistributedDataParallel(
-        model, device_ids=[rank], find_unused_parameters=True
-    )
+    if args.computing == "parallel":
+        model = nn.parallel.DistributedDataParallel(
+            model, device_ids=[rank], find_unused_parameters=True
+        )
     
     arg_opt = utils.AttrDict(config["optimizer"])
     optimizer = create_optimizer(arg_opt, model)
@@ -390,13 +391,17 @@ if __name__ == "__main__":
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--local_rank", default=0, type=int)
     parser.add_argument("--world_size", default=1, type=int)
-    parser.add_argument("--computing", type=str, default='parallel', help="number of gpus")
+    parser.add_argument("--computing", type=str, default='single', help="number of gpus")
     args = parser.parse_args()
     import datetime
     args.output_dir = os.path.join(
         args.output_dir,
         datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
     )
+
+    gpus = torch.cuda.device_count()
+    if gpus > 1:
+        args.computing = "parallel"
 
     config = yaml.load(open(args.config, "r"), Loader=yaml.Loader)
 
