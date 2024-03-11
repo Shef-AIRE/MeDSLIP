@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from dataset.dataset_RSNA import RSNA2018_Dataset
-from models.model_MedKLIP import MedKLIP
+from models.model_MeDSLIP import MeDSLIP
 from models.tokenization_bert import BertTokenizer
 from tqdm import tqdm
 
@@ -220,7 +220,7 @@ def main(args, config):
     disease_book_tokenizer = get_tokenizer(tokenizer, disease_book).to(device)
 
     print("Creating model")
-    model = MedKLIP(config, ana_book_tokenizer, disease_book_tokenizer, mode="train")
+    model = MeDSLIP(config, ana_book_tokenizer, disease_book_tokenizer, mode="train")
     model = nn.DataParallel(
         model, device_ids=[i for i in range(torch.cuda.device_count())]
     )
@@ -322,7 +322,7 @@ def main(args, config):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="Sample_Zero-Shot_Grounding_RSNA/configs/MedKLIP_config.yaml")
+    parser.add_argument("--config", default="Sample_Zero-Shot_Grounding_RSNA/configs/MeDSLIP_config.yaml")
     parser.add_argument("--checkpoint", default="runs/dual_stream/2024-02-14_22-44-14/checkpoint_64.pth")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--gpu", type=str, default="0", help="gpu")

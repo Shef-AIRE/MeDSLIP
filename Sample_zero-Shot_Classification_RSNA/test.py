@@ -8,7 +8,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
 from dataset.dataset_RSNA import RSNA2018_Dataset
-from models.model_MedKLIP import MedKLIP
+from models.model_MeDSLIP import MeDSLIP
 from models.tokenization_bert import BertTokenizer
 from sklearn.metrics import roc_auc_score, precision_recall_curve, accuracy_score
 from tqdm import tqdm
@@ -205,7 +205,7 @@ def main(args, config):
     disease_book_tokenizer = get_tokenizer(tokenizer, disease_book).to(device)
 
     print("Creating model")
-    model = MedKLIP(config, disease_book_tokenizer)
+    model = MeDSLIP(config, disease_book_tokenizer)
     model = nn.DataParallel(
         model, device_ids=[i for i in range(torch.cuda.device_count())]
     )
@@ -262,8 +262,8 @@ def main(args, config):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="/home/wenrui/Projects/MIMIC/MedKLIP/Sample_zero-Shot_Classification_RSNA/configs/MedKLIP_config.yaml")
-    parser.add_argument("--checkpoint", default="/home/wenrui/Projects/MIMIC/MedKLIP/runs/dual_stream/2024-02-14_22-44-14/checkpoint_64.pth")
+    parser.add_argument("--config", default="/home/wenrui/Projects/MIMIC/MeDSLIP/Sample_zero-Shot_Classification_RSNA/configs/MeDSLIP_config.yaml")
+    parser.add_argument("--checkpoint", default="/home/wenrui/Projects/MIMIC/MeDSLIP/runs/dual_stream/2024-02-14_22-44-14/checkpoint_64.pth")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--gpu", type=str, default="0", help="gpu")
     parser.add_argument("--use_ws_p", type=bool, default=False, help="use ws_p")

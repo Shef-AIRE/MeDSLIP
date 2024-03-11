@@ -108,7 +108,7 @@ def test(args, config):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="/home/wenrui/Projects/MIMIC/MedKLIP/Sample_Finetuning_SIIMACR/I1_classification/configs/Res_train.yaml")
+    parser.add_argument("--config", default="/home/wenrui/Projects/MIMIC/MeDSLIP/Sample_Finetuning_SIIMACR/I1_classification/configs/Res_train.yaml")
     parser.add_argument("--checkpoint", default="")
     parser.add_argument("--model_path", default="Path/To/best_valid.pth")
     parser.add_argument("--device", default="cuda")

@@ -265,11 +265,11 @@ def main(args, config):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="/home/wenrui/Projects/MIMIC/MedKLIP/Sample_Finetuning_SIIMACR/I2_segmentation/configs/Res_train.yaml")
+    parser.add_argument("--config", default="/home/wenrui/Projects/MIMIC/MeDSLIP/Sample_Finetuning_SIIMACR/I2_segmentation/configs/Res_train.yaml")
     parser.add_argument("--checkpoint", default="")
     parser.add_argument("--model_path", default="")
-    parser.add_argument("--pretrain_path", default="/home/wenrui/Projects/MIMIC/MedKLIP/runs/baseline/checkpoint_state.pth")
-    parser.add_argument("--output_dir", default="/home/wenrui/Projects/MIMIC/MedKLIP/Sample_Finetuning_SIIMACR/I2_segmentation/runs")
+    parser.add_argument("--pretrain_path", default="/home/wenrui/Projects/MIMIC/MeDSLIP/runs/baseline/checkpoint_state.pth")
+    parser.add_argument("--output_dir", default="/home/wenrui/Projects/MIMIC/MeDSLIP/Sample_Finetuning_SIIMACR/I2_segmentation/runs")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--gpu", type=str, default="0", help="gpu")
     args = parser.parse_args()
