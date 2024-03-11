@@ -29,13 +29,6 @@ Our pre-train code is given in ```Train_MeDSLIP```.
 * Modify the path as you disire in ```PreTrain_MeDSLIP/configs/Pretrain_MeDSLIP.yaml```, and ```python PreTrain_MeDSLIP/train_MeDSLIP.py``` to pre-train.
 
 ## Reference
-```
-@article{wu2023MeDSLIP,
-  title={MeDSLIP: Medical Knowledge Enhanced Language-Image Pre-Training},
-  author={Wu, Chaoyi and Zhang, Xiaoman and Zhang, Ya and Wang, Yanfeng and Xie, Weidi},
-  journal={Proceedings of the IEEE/CVF International Conference on Computer Vision},
-  year={2023}
-}
-```
+- Wu, Chaoyi, Xiaoman Zhang, Ya Zhang, Yanfeng Wang, and Weidi Xie. "MedKLIP: Medical Knowledge Enhanced Language-Image Pre-Training in Radiology." arXiv preprint arXiv:2301.02228 (2023).
 ## Contact
 If you have any question, please feel free to contact winslow.fan@outlook.com.
