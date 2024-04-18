@@ -6,7 +6,7 @@ The official implementation  code for "MeDSLIP: Medical Knowledge Enhanced Langu
 <!-- 
 [**Paper Web**](https://chaoyi-wu.github.io/MeDSLIP/) -->
 
-[**Arxiv Version**](https://arxiv.org/abs/)
+[**Arxiv Version**](https://arxiv.org/abs/2403.10635)
 
 ## Quick Start:
 Check checkpoints dir to download our pre-trained model. It can be used for all zero-shot && finetuning tasks
