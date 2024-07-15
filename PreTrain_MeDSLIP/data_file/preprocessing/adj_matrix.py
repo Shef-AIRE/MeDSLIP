@@ -676,12 +676,12 @@ class LandmarkObservationAdjacentMatrix(Dataset):
 def anatomy_to_landmark(x, a, m1=[], m2=[], sc=[], t="m0"):
     """
     Args:
-        x: input anatomy, e.g., 'lobe|left|lower'
-        a: base anatomy set, e.g., ['hilar', 'hilum', 'perihilar']
-        m1: level 1 modifier, e.g., ['left', 'right']
-        m2: level 2 modifier, e.g., ['upper', 'middle', 'lower']
-        s: special cases, e.g., ['chest']
-        t: type, ['m2+', 'm1+m2-']
+        x: input anatomy, e.g., "lobe|left|lower"
+        a: base anatomy set, e.g., ["hilar", "hilum", "perihilar"]
+        m1: level 1 modifier, e.g., ["left", "right"]
+        m2: level 2 modifier, e.g., ["upper", "middle", "lower"]
+        s: special cases, e.g., ["chest"]
+        t: type, ["m2+", "m1+m2-"]
     Return:
         flag: boolean, matched or not matched
     """

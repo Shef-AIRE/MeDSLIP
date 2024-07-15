@@ -29,7 +29,7 @@ class MeDSLIP(nn.Module):
         super(MeDSLIP, self).__init__()
         self.mode = mode
         self.d_model = config["d_model"]
-        # ''' book embedding'''
+        # """ book embedding"""
         with torch.no_grad():
             bert_model = self._get_bert_basemodel(
                 config["text_encoder"], freeze_layers=None
@@ -255,7 +255,6 @@ class MeDSLIP(nn.Module):
         exclude_class=False,
     ):
 
-        # labels batch,51,75 binary_label batch,75 sample_index_pathology batch,index
         B = images.shape[0]
         device = images.device
         """ Visual Backbone """
@@ -291,7 +290,7 @@ class MeDSLIP(nn.Module):
             ap_pathology.transpose(0, 1), ap_anatomy.transpose(0, 1).transpose(1, 2)
         ).transpose(
             1, 2
-        )  # B, 51, 75
+        ) 
         if text_gen:
             output_logits = ap_logits
         matrix_zero = matrix
@@ -319,7 +318,7 @@ class MeDSLIP(nn.Module):
                 ]
             ).to(
                 device
-            )  # [128, 75, 8, 768]
+            )
             entity_query = torch.zeros(
                 [
                     sample_index_anatomy.shape[0],
@@ -333,7 +332,7 @@ class MeDSLIP(nn.Module):
                 sample_index_pathology != -1
             ).int().unsqueeze(-1).repeat(
                 1, 1, 1, 768
-            )  # batch, Q , position_num ,dim [128, 75, 8, 768]
+            )  # batch, Q , position_num ,dim
             entity_query = self.pathology_book[sample_index_anatomy, :] * (
                 sample_index_anatomy != -1
             ).int().unsqueeze(-1).repeat(1, 1, 1, 768)
@@ -450,7 +449,7 @@ class MeDSLIP(nn.Module):
                 )
                 ll_anatomy = ll_anatomy.reshape(B * Q_anatomy, -1)
 
-        x_pathology = self.classifier_pathology(out_pathology).transpose(0, 1)  # []
+        x_pathology = self.classifier_pathology(out_pathology).transpose(0, 1)
         x_anatomy = self.classifier_anatomy(out_anatomy).transpose(
             0, 1
         )  # B query Atributes

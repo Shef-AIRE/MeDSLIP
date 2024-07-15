@@ -179,9 +179,6 @@ class MeDSLIP_Dataset(Dataset):
             self.transform = transforms.Compose(
                 [
                     transforms.Resize([224, 224]),
-                    # transforms.RandomHorizontalFlip(),
-                    # RandomAugment(2,7,isPIL=True,augs=['Idpathology','AutoContrast','Equalize','Brightness','Sharpness',
-                    #                                   'ShearX', 'ShearY', 'TranslateX', 'TranslateY', 'Rotate']),
                     transforms.ToTensor(),
                     normalize,
                 ]
@@ -191,7 +188,7 @@ class MeDSLIP_Dataset(Dataset):
         img_path = self.img_path_list[index]
         class_label = self.rad_graph_results[
             self.ann[img_path]["labels_id"], :, :
-        ]  # (51, 75)
+        ] 
         labels_pathology = np.zeros(class_label.shape[-1]) - 1
         labels_anatomy = np.zeros(class_label.shape[0]) - 1
         labels_pathology, index_list_pathology = self.triplet_extraction_pathology(
@@ -222,10 +219,8 @@ class MeDSLIP_Dataset(Dataset):
 
         exist_labels = np.zeros(class_label.shape[-1]) - 1
         anatomy_list = []
-        # positive_list = np.zeros([class_label.shape[1], class_label.shape[0]]) - 1
         for i in range(class_label.shape[1]):
             temp_list = []
-            # positive_list[i] = np.zeros(class_label.shape[1]) - 1
             ### extract the exist label for each pathology and maintain -1 if not mentioned. ###
             if 0 in class_label[:, i]:
                 exist_labels[i] = 0
@@ -258,10 +253,8 @@ class MeDSLIP_Dataset(Dataset):
         """
         exist_labels = np.zeros(class_label.shape[0]) - 1
         pathology_list = []
-        # positive_list = np.zeros([class_label.shape[1], class_label.shape[0]]) - 1
         for i in range(class_label.shape[0]):
             temp_list = []
-            # positive_list[i] = np.zeros(class_label.shape[1]) - 1
             ### extract the exist label for each pathology and maintain -1 if not mentioned. ###
             if 0 in class_label[i, :]:
                 exist_labels[i] = 0
@@ -284,7 +277,6 @@ class MeDSLIP_Dataset(Dataset):
                     np.where(class_label[i, :] != 1)[0].tolist(),
                     self.num_neg_samples + 1,
                 )
-                # positive_list.append()
             pathology_list.append(temp_list)
 
         return exist_labels, pathology_list
