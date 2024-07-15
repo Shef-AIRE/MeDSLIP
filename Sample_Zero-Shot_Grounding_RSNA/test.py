@@ -156,63 +156,61 @@ def main(args, config):
     json_book = json.load(open(config["disease_book"], "r"))
     disease_book = [json_book[i] for i in json_book]
     ana_list = [
-            "trachea",
-            "left_hilar",
-            "right_hilar",
-            "hilar_unspec",
-            "left_pleural",
-            "right_pleural",
-            "pleural_unspec",
-            "heart_size",
-            "heart_border",
-            "left_diaphragm",
-            "right_diaphragm",
-            "diaphragm_unspec",
-            "retrocardiac",
-            "lower_left_lobe",
-            "upper_left_lobe",
-            "lower_right_lobe",
-            "middle_right_lobe",
-            "upper_right_lobe",
-            "left_lower_lung",
-            "left_mid_lung",
-            "left_upper_lung",
-            "left_apical_lung",
-            "left_lung_unspec",
-            "right_lower_lung",
-            "right_mid_lung",
-            "right_upper_lung",
-            "right_apical_lung",
-            "right_lung_unspec",
-            "lung_apices",
-            "lung_bases",
-            "left_costophrenic",
-            "right_costophrenic",
-            "costophrenic_unspec",
-            "cardiophrenic_sulcus",
-            "mediastinal",
-            "spine",
-            "clavicle",
-            "rib",
-            "stomach",
-            "right_atrium",
-            "right_ventricle",
-            "aorta",
-            "svc",
-            "interstitium",
-            "parenchymal",
-            "cavoatrial_junction",
-            "cardiopulmonary",
-            "pulmonary",
-            "lung_volumes",
-            "unspecified",
-            "other",
-        ]
+        "trachea",
+        "left_hilar",
+        "right_hilar",
+        "hilar_unspec",
+        "left_pleural",
+        "right_pleural",
+        "pleural_unspec",
+        "heart_size",
+        "heart_border",
+        "left_diaphragm",
+        "right_diaphragm",
+        "diaphragm_unspec",
+        "retrocardiac",
+        "lower_left_lobe",
+        "upper_left_lobe",
+        "lower_right_lobe",
+        "middle_right_lobe",
+        "upper_right_lobe",
+        "left_lower_lung",
+        "left_mid_lung",
+        "left_upper_lung",
+        "left_apical_lung",
+        "left_lung_unspec",
+        "right_lower_lung",
+        "right_mid_lung",
+        "right_upper_lung",
+        "right_apical_lung",
+        "right_lung_unspec",
+        "lung_apices",
+        "lung_bases",
+        "left_costophrenic",
+        "right_costophrenic",
+        "costophrenic_unspec",
+        "cardiophrenic_sulcus",
+        "mediastinal",
+        "spine",
+        "clavicle",
+        "rib",
+        "stomach",
+        "right_atrium",
+        "right_ventricle",
+        "aorta",
+        "svc",
+        "interstitium",
+        "parenchymal",
+        "cavoatrial_junction",
+        "cardiopulmonary",
+        "pulmonary",
+        "lung_volumes",
+        "unspecified",
+        "other",
+    ]
     ana_book = []
     for i in ana_list:
-        ana_book.append(
-            "It is located at " + i + '. '
-        )
+        ana_book.append("It is located at " + i + ". ")
     tokenizer = BertTokenizer.from_pretrained(config["text_encoder"])
     ana_book_tokenizer = get_tokenizer(tokenizer, ana_book).to(device)
     disease_book_tokenizer = get_tokenizer(tokenizer, disease_book).to(device)
@@ -255,9 +253,7 @@ def main(args, config):
             features_p = features_p.transpose(0, 1)
             ws_e = (ws_e[-4] + ws_e[-3] + ws_e[-2] + ws_e[-1]) / 4
             ws_p = (ws_p[-4] + ws_p[-3] + ws_p[-2] + ws_p[-1]) / 4
-            pred_map = (
-                ws_e[:, original_class.index("pneumonia"), :]
-            )
+            pred_map = ws_e[:, original_class.index("pneumonia"), :]
 
             threshold = 0
             if args.use_ws_p:
@@ -266,12 +262,10 @@ def main(args, config):
                 pred_map = (pred_map * ws_p).mean(axis=1)
                 threshold = 0.01
 
-                
             pred_map = pred_map / torch.max(pred_map)
 
             pred_map = pred_map.reshape(batch_size, 14, 14).detach().cpu().numpy()
-            
-            
+
             pred_map = torch.from_numpy(
                 pred_map.repeat(16, axis=1).repeat(16, axis=2)
             ).to(
@@ -306,7 +300,10 @@ def main(args, config):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="Sample_Zero-Shot_Grounding_RSNA/configs/MeDSLIP_config.yaml")
+    parser.add_argument(
+        "--config",
+        default="Sample_Zero-Shot_Grounding_RSNA/configs/MeDSLIP_config.yaml",
+    )
     parser.add_argument("--checkpoint", default="checkpoint.pth")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--gpu", type=str, default="0", help="gpu")

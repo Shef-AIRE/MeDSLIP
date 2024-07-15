@@ -21,6 +21,7 @@ from dataset.dataset_siim_acr import SIIM_ACR_Dataset
 from scheduler import create_scheduler
 from optim import create_optimizer
 import warnings
+
 warnings.filterwarnings("ignore")
 
 
@@ -113,7 +114,9 @@ def main(args, config):
 
     #### Dataset ####
     print("Creating dataset")
-    train_dataset = SIIM_ACR_Dataset(config["train_file"], percentage=config["percentage"])
+    train_dataset = SIIM_ACR_Dataset(
+        config["train_file"], percentage=config["percentage"]
+    )
     train_dataloader = DataLoader(
         train_dataset,
         batch_size=config["batch_size"],
@@ -138,7 +141,7 @@ def main(args, config):
     )
     print(len(train_dataset), len(val_dataset))
 
-    model = ModelRes_ft(res_base_model="resnet50", out_size=1, use_base=args.use_base)  
+    model = ModelRes_ft(res_base_model="resnet50", out_size=1, use_base=args.use_base)
     model = nn.DataParallel(
         model, device_ids=[i for i in range(torch.cuda.device_count())]
     )
@@ -218,7 +221,7 @@ def main(args, config):
 
             with open(os.path.join(args.output_dir, "log.txt"), "a") as f:
                 f.write(json.dumps(log_stats) + "\n")
-        
+
         test_auc = test(args, config)
         print(best_test_auc, test_auc)
         if test_auc > best_test_auc:
@@ -232,7 +235,7 @@ def main(args, config):
             torch.save(save_obj, os.path.join(args.output_dir, "best_test.pth"))
             best_test_auc = test_auc
             args.model_path = os.path.join(args.output_dir, "checkpoint_state.pth")
-            
+
             with open(os.path.join(args.output_dir, "log.txt"), "a") as f:
                 f.write(
                     "The average AUROC is {AUROC_avg:.4f}".format(AUROC_avg=test_auc)
@@ -259,11 +262,16 @@ def main(args, config):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="Sample_Finetuning_SIIMACR/I1_classification/configs/Res_train.yaml")
+    parser.add_argument(
+        "--config",
+        default="Sample_Finetuning_SIIMACR/I1_classification/configs/Res_train.yaml",
+    )
     parser.add_argument("--checkpoint", default="")
     parser.add_argument("--model_path", default="")
     parser.add_argument("--pretrain_path", default="checkpoint_state.pth")
-    parser.add_argument("--output_dir", default="Sample_Finetuning_SIIMACR/I1_classification/runs/")
+    parser.add_argument(
+        "--output_dir", default="Sample_Finetuning_SIIMACR/I1_classification/runs/"
+    )
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--gpu", type=str, default="0", help="gpu")
     parser.add_argument("--use_base", type=bool, default=True)
@@ -272,7 +280,10 @@ if __name__ == "__main__":
     config = yaml.load(open(args.config, "r"), Loader=yaml.Loader)
     args.output_dir = os.path.join(args.output_dir, str(config["percentage"]))
     from datetime import datetime
-    args.output_dir = os.path.join(args.output_dir, datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+
+    args.output_dir = os.path.join(
+        args.output_dir, datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    )
     args.model_path = os.path.join(args.output_dir, "checkpoint_state.pth")
 
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)

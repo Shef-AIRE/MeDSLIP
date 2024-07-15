@@ -22,6 +22,7 @@ from scheduler import create_scheduler
 from optim import create_optimizer
 from torchvision import models
 import warnings
+
 warnings.filterwarnings("ignore")
 
 
@@ -115,7 +116,9 @@ def main(args, config):
 
     #### Dataset ####
     print("Creating dataset")
-    train_dataset = SIIM_ACR_Dataset(config["train_file"], percentage=config["percentage"])
+    train_dataset = SIIM_ACR_Dataset(
+        config["train_file"], percentage=config["percentage"]
+    )
     train_dataloader = DataLoader(
         train_dataset,
         batch_size=config["batch_size"],
@@ -140,7 +143,9 @@ def main(args, config):
     )
 
     model = ModelResUNet_ft(
-        res_base_model="resnet50", out_size=1, imagenet_pretrain=models.ResNet50_Weights.DEFAULT
+        res_base_model="resnet50",
+        out_size=1,
+        imagenet_pretrain=models.ResNet50_Weights.DEFAULT,
     )
     model = nn.DataParallel(
         model, device_ids=[i for i in range(torch.cuda.device_count())]
@@ -239,8 +244,7 @@ def main(args, config):
             torch.save(save_obj, os.path.join(args.output_dir, "best_valid.pth"))
             best_dice_score = dice_score
             best_test_IoU_score = IoU_score
-            
-            
+
             with open(os.path.join(args.output_dir, "log.txt"), "a") as f:
                 f.write("The dice score is {dice:.4f}".format(dice=dice_score) + "\n")
                 f.write("The iou score is {iou:.4f}".format(iou=IoU_score) + "\n")
@@ -265,19 +269,33 @@ def main(args, config):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="Sample_Finetuning_SIIMACR/I2_segmentation/configs/Res_train.yaml")
+    parser.add_argument(
+        "--config",
+        default="Sample_Finetuning_SIIMACR/I2_segmentation/configs/Res_train.yaml",
+    )
     parser.add_argument("--checkpoint", default="")
     parser.add_argument("--model_path", default="")
     parser.add_argument("--pretrain_path", default="checkpoint_state.pth")
-    parser.add_argument("--output_dir", default="Sample_Finetuning_SIIMACR/I2_segmentation/runs")
+    parser.add_argument(
+        "--output_dir", default="Sample_Finetuning_SIIMACR/I2_segmentation/runs"
+    )
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--gpu", type=str, default="0", help="gpu")
     args = parser.parse_args()
 
     config = yaml.load(open(args.config, "r"), Loader=yaml.Loader)
     from datetime import datetime
-    args.output_dir = os.path.join(args.output_dir, str(config['percentage']), datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
-    args.model_path = args.model_path if args.model_path else os.path.join(args.output_dir, "best_valid.pth")
+
+    args.output_dir = os.path.join(
+        args.output_dir,
+        str(config["percentage"]),
+        datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
+    )
+    args.model_path = (
+        args.model_path
+        if args.model_path
+        else os.path.join(args.output_dir, "best_valid.pth")
+    )
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
 
     yaml.dump(config, open(os.path.join(args.output_dir, "config.yaml"), "w"))

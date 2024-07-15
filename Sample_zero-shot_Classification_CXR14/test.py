@@ -8,6 +8,7 @@ import datetime
 import json
 from pathlib import Path
 import warnings
+
 warnings.filterwarnings("ignore")
 
 import torch
@@ -247,8 +248,11 @@ def test(args, config):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="Sample_zero-shot_Classification_CXR14/configs/MeDSLIP_config.yaml")
-    
+    parser.add_argument(
+        "--config",
+        default="Sample_zero-shot_Classification_CXR14/configs/MeDSLIP_config.yaml",
+    )
+
     parser.add_argument("--model_path", default="checkpoint.pth")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--gpu", type=str, default="0", help="gpu")

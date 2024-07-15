@@ -10,7 +10,9 @@ import torch.distributed as dist
 from tqdm import tqdm
 
 import warnings
+
 warnings.filterwarnings("ignore")
+
 
 class SmoothedValue(object):
     """Track a series of values and provide access to smoothed values over a

@@ -194,8 +194,12 @@ class MeDSLIP_Dataset(Dataset):
         ]  # (51, 75)
         labels_pathology = np.zeros(class_label.shape[-1]) - 1
         labels_anatomy = np.zeros(class_label.shape[0]) - 1
-        labels_pathology, index_list_pathology = self.triplet_extraction_pathology(class_label)
-        labels_anatomy, index_list_anatomy = self.triplet_extraction_anatomy(class_label)
+        labels_pathology, index_list_pathology = self.triplet_extraction_pathology(
+            class_label
+        )
+        labels_anatomy, index_list_anatomy = self.triplet_extraction_anatomy(
+            class_label
+        )
         index_list_pathology = np.array(index_list_pathology)
         index_list_anatomy = np.array(index_list_anatomy)
 
@@ -212,10 +216,10 @@ class MeDSLIP_Dataset(Dataset):
         }
 
     def triplet_extraction_pathology(self, class_label):
-        '''
+        """
         This is for ProtoCL. Therefore, we need to extract anatomies to use in pathology stream.
-        '''
-        
+        """
+
         exist_labels = np.zeros(class_label.shape[-1]) - 1
         anatomy_list = []
         # positive_list = np.zeros([class_label.shape[1], class_label.shape[0]]) - 1
@@ -247,11 +251,11 @@ class MeDSLIP_Dataset(Dataset):
             anatomy_list.append(temp_list)
 
         return exist_labels, anatomy_list
-    
+
     def triplet_extraction_anatomy(self, class_label):
-        '''
+        """
         This is for ProtoCL. Therefore, we need to extract pathological labels to use in anatomy stream.
-        '''
+        """
         exist_labels = np.zeros(class_label.shape[0]) - 1
         pathology_list = []
         # positive_list = np.zeros([class_label.shape[1], class_label.shape[0]]) - 1

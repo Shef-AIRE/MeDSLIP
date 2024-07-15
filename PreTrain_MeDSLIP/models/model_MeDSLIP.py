@@ -23,8 +23,9 @@ args.attribute_set_size
 
 
 class MeDSLIP(nn.Module):
-    def __init__(self, config, anatomy_book, pathology_book, mode="train", 
-                 ):
+    def __init__(
+        self, config, anatomy_book, pathology_book, mode="train",
+    ):
         super(MeDSLIP, self).__init__()
         self.mode = mode
         self.d_model = config["d_model"]
@@ -148,7 +149,7 @@ class MeDSLIP(nn.Module):
         resnet = self._get_res_basemodel(config["res_base_model"])
         num_ftrs = int(resnet.fc.in_features / 2)
         self.res_features = nn.Sequential(*list(resnet.children())[:-3])
-        
+
         self.res_l1_pathology = nn.Linear(num_ftrs, num_ftrs)
         self.res_l2_pathology = nn.Linear(num_ftrs, self.d_model)
 
@@ -180,7 +181,9 @@ class MeDSLIP(nn.Module):
 
         # Attribute classifier
         self.classifier_anatomy = nn.Linear(self.d_model, config["attribute_set_size"])
-        self.classifier_pathology = nn.Linear(self.d_model, config["attribute_set_size"])
+        self.classifier_pathology = nn.Linear(
+            self.d_model, config["attribute_set_size"]
+        )
 
         self.apply(self._init_weights)
 
@@ -241,8 +244,8 @@ class MeDSLIP(nn.Module):
     def forward(
         self,
         images,
-        labels_pathology = None,
-        labels_anatomy = None,
+        labels_pathology=None,
+        labels_anatomy=None,
         matrix=None,
         sample_index_pathology=None,
         sample_index_anatomy=None,
@@ -257,7 +260,7 @@ class MeDSLIP(nn.Module):
         device = images.device
         """ Visual Backbone """
         x_pathology, x_anatomy = self.image_encoder(images)  # batch_size,patch_num,dim
-        
+
         features_pathology = x_pathology.transpose(0, 1)  # patch_num b dim
         features_anatomy = x_anatomy.transpose(0, 1)  # patch_num b dim
 
@@ -281,24 +284,29 @@ class MeDSLIP(nn.Module):
             query_pos=None,
         )
 
-
         ap_pathology = features_pathology
         ap_anatomy = features_anatomy
 
-        ap_logits = torch.bmm(ap_pathology.transpose(0, 1), ap_anatomy.transpose(0, 1).transpose(1, 2)).transpose(1, 2) # B, 51, 75
+        ap_logits = torch.bmm(
+            ap_pathology.transpose(0, 1), ap_anatomy.transpose(0, 1).transpose(1, 2)
+        ).transpose(
+            1, 2
+        )  # B, 51, 75
         if text_gen:
             output_logits = ap_logits
         matrix_zero = matrix
 
-        masks = (matrix_zero >=0)
+        masks = matrix_zero >= 0
         ap_logits = ap_logits[masks]
         matrix_zero = matrix_zero[masks]
 
-        loss_ap = F.binary_cross_entropy_with_logits(ap_logits.float(), matrix_zero.float())
+        loss_ap = F.binary_cross_entropy_with_logits(
+            ap_logits.float(), matrix_zero.float()
+        )
 
         out_pathology = self.dropout_feas_pathology(features_pathology)
         out_anatomy = self.dropout_feas_anatomy(features_anatomy)
-        
+
         if is_train == True and no_cl == False:
 
             # get anatomytomy query
@@ -309,7 +317,9 @@ class MeDSLIP(nn.Module):
                     sample_index_pathology.shape[2],
                     self.anatomy_book.shape[-1],
                 ]
-            ).to(device)  # [128, 75, 8, 768]
+            ).to(
+                device
+            )  # [128, 75, 8, 768]
             entity_query = torch.zeros(
                 [
                     sample_index_anatomy.shape[0],
@@ -321,7 +331,9 @@ class MeDSLIP(nn.Module):
 
             anatomytomy_query = self.anatomy_book[sample_index_pathology, :] * (
                 sample_index_pathology != -1
-            ).int().unsqueeze(-1).repeat(1, 1, 1, 768)  # batch, Q , position_num ,dim [128, 75, 8, 768]
+            ).int().unsqueeze(-1).repeat(
+                1, 1, 1, 768
+            )  # batch, Q , position_num ,dim [128, 75, 8, 768]
             entity_query = self.pathology_book[sample_index_anatomy, :] * (
                 sample_index_anatomy != -1
             ).int().unsqueeze(-1).repeat(1, 1, 1, 768)
@@ -339,12 +351,22 @@ class MeDSLIP(nn.Module):
 
             anatomy_temp = self.anatomy_book
             pathology_temp = self.pathology_book
-            anatomy_temp = anatomy_temp.unsqueeze(0).repeat(anatomytomy_query.shape[0], 1, 1)
-            pathology_temp = pathology_temp.unsqueeze(0).repeat(entity_query.shape[0], 1, 1)
-            anatomy_temp = anatomy_temp.unsqueeze(2).repeat(1, 1, anatomytomy_query.shape[1], 1)
-            pathology_temp = pathology_temp.unsqueeze(2).repeat(1, 1, entity_query.shape[1], 1)
+            anatomy_temp = anatomy_temp.unsqueeze(0).repeat(
+                anatomytomy_query.shape[0], 1, 1
+            )
+            pathology_temp = pathology_temp.unsqueeze(0).repeat(
+                entity_query.shape[0], 1, 1
+            )
+            anatomy_temp = anatomy_temp.unsqueeze(2).repeat(
+                1, 1, anatomytomy_query.shape[1], 1
+            )
+            pathology_temp = pathology_temp.unsqueeze(2).repeat(
+                1, 1, entity_query.shape[1], 1
+            )
 
-            posi_matrix_pathology = (matrix_zero_pathology * anatomy_temp).transpose(1, 2)
+            posi_matrix_pathology = (matrix_zero_pathology * anatomy_temp).transpose(
+                1, 2
+            )
             posi_matrix_anatomy = (matrix_zero_anatomy * pathology_temp).transpose(1, 2)
 
             for i in range(anatomytomy_query.shape[0]):
@@ -359,7 +381,7 @@ class MeDSLIP(nn.Module):
                         anatomytomy_query[i, j, 0, :] = (
                             posi_matrix_pathology[i, j, :, :].sum(dim=0) / num_posi
                         )
-            
+
             for i in range(entity_query.shape[0]):
                 for j in range(entity_query.shape[1]):
                     if (posi_matrix_anatomy[i, j] != 0).sum() > 0:
@@ -381,8 +403,12 @@ class MeDSLIP(nn.Module):
             Q_pathology = ll_pathology.shape[1]
             Q_anatomy = ll_anatomy.shape[1]
 
-            ll_pathology = ll_pathology.reshape(ll_pathology.shape[0] * ll_pathology.shape[1], -1)
-            ll_anatomy = ll_anatomy.reshape(ll_anatomy.shape[0] * ll_anatomy.shape[1], -1)
+            ll_pathology = ll_pathology.reshape(
+                ll_pathology.shape[0] * ll_pathology.shape[1], -1
+            )
+            ll_anatomy = ll_anatomy.reshape(
+                ll_anatomy.shape[0] * ll_anatomy.shape[1], -1
+            )
 
             ll_pathology = self.cl_fc_pathology(ll_pathology)
             ll_anatomy = self.cl_fc_anatomy(ll_anatomy)
@@ -393,8 +419,12 @@ class MeDSLIP(nn.Module):
             anatomytomy_query = anatomytomy_query.reshape(B * Q_pathology, 8, 768)
             entity_query = entity_query.reshape(B * Q_anatomy, 8, 768)
 
-            ll_pathology = torch.bmm(anatomytomy_query, ll_pathology).squeeze()  # B Q position_num
-            ll_anatomy = torch.bmm(entity_query, ll_anatomy).squeeze()  # B Q position_num
+            ll_pathology = torch.bmm(
+                anatomytomy_query, ll_pathology
+            ).squeeze()  # B Q position_num
+            ll_anatomy = torch.bmm(
+                entity_query, ll_anatomy
+            ).squeeze()  # B Q position_num
 
             cl_labels_pathology = torch.zeros((ll_pathology.shape[0])).to(device)
             cl_labels_anatomy = torch.zeros((ll_anatomy.shape[0])).to(device)
@@ -403,7 +433,9 @@ class MeDSLIP(nn.Module):
                 cl_labels_pathology = cl_labels_pathology.reshape(B, Q_pathology)
                 cl_labels_anatomy = cl_labels_anatomy.reshape(B, Q_anatomy)
 
-                cl_labels_pathology = cl_labels_pathology[:, self.keep_class_dim_pathology]
+                cl_labels_pathology = cl_labels_pathology[
+                    :, self.keep_class_dim_pathology
+                ]
                 cl_labels_anatomy = cl_labels_anatomy[:, self.keep_class_dim_pathology]
 
                 cl_labels_pathology = cl_labels_pathology.reshape(-1)
@@ -413,11 +445,15 @@ class MeDSLIP(nn.Module):
                 ll_anatomy = ll_anatomy.reshape(B, Q_anatomy, -1)
 
                 ll_pathology = ll_pathology[:, self.keep_class_dim_pathology, :]
-                ll_pathology = ll_pathology.reshape(B * (len(self.keep_class_dim_pathology)), -1)
+                ll_pathology = ll_pathology.reshape(
+                    B * (len(self.keep_class_dim_pathology)), -1
+                )
                 ll_anatomy = ll_anatomy.reshape(B * Q_anatomy, -1)
 
         x_pathology = self.classifier_pathology(out_pathology).transpose(0, 1)  # []
-        x_anatomy = self.classifier_anatomy(out_anatomy).transpose(0, 1)  # B query Atributes
+        x_anatomy = self.classifier_anatomy(out_anatomy).transpose(
+            0, 1
+        )  # B query Atributes
 
         if exclude_class == True:
             labels_pathology = labels_pathology[:, self.keep_class_dim_pathology]
@@ -437,7 +473,9 @@ class MeDSLIP(nn.Module):
             labels_anatomy = labels_anatomy[Mask_anatomy].long()
             logits_pathology = logits_pathology[Mask_pathology]
             logits_anatomy = logits_anatomy[Mask_anatomy]
-            loss_ce_pathology = F.cross_entropy(logits_pathology, labels_pathology[:, 0])
+            loss_ce_pathology = F.cross_entropy(
+                logits_pathology, labels_pathology[:, 0]
+            )
             loss_ce_anatomy = F.cross_entropy(logits_anatomy, labels_anatomy[:, 0])
             if no_cl == False:
                 cl_labels_pathology = cl_labels_pathology[cl_mask_pathology].long()
@@ -456,9 +494,23 @@ class MeDSLIP(nn.Module):
             loss = 0
         if is_train == True:
             if text_gen:
-                return loss, x_pathology, ws_pathology, x_anatomy, ws_anatomy, output_logits
+                return (
+                    loss,
+                    x_pathology,
+                    ws_pathology,
+                    x_anatomy,
+                    ws_anatomy,
+                    output_logits,
+                )
             else:
-                return loss, loss_ce_pathology, loss_cl_pathology, loss_ce_anatomy, loss_cl_anatomy, loss_ap
+                return (
+                    loss,
+                    loss_ce_pathology,
+                    loss_cl_pathology,
+                    loss_ce_anatomy,
+                    loss_cl_anatomy,
+                    loss_ap,
+                )
         else:
             return loss, x_pathology, ws_pathology, x_anatomy, ws_anatomy
 

@@ -103,7 +103,14 @@ class UpBlockForUNetWithResNet50(nn.Module):
 
 
 class ModelResUNet_ft(nn.Module):
-    def __init__(self, res_base_model, out_size, imagenet_pretrain, linear_probe=False, use_base=True):
+    def __init__(
+        self,
+        res_base_model,
+        out_size,
+        imagenet_pretrain,
+        linear_probe=False,
+        use_base=True,
+    ):
         super(ModelResUNet_ft, self).__init__()
         self.resnet_dict = {
             # "resnet18": models.resnet18(weights=imagenet_pretrain),
@@ -112,7 +119,7 @@ class ModelResUNet_ft(nn.Module):
         resnet = self._get_res_basemodel(res_base_model)
         self.use_base = use_base
         if not self.use_base:
-            num_ftrs = int(resnet.fc.in_features/2)
+            num_ftrs = int(resnet.fc.in_features / 2)
             self.res_features = nn.Sequential(*list(resnet.children())[:-3])
             self.res_l1_p = nn.Linear(num_ftrs, num_ftrs)
             self.res_l2_p = nn.Linear(num_ftrs, 256)
@@ -220,7 +227,7 @@ class ModelResUNet_ft(nn.Module):
             raise (
                 "Invalid model name. Check the config file and pass one of: resnet18 or resnet50"
             )
-        
+
     def image_encoder(self, xis):
         # patch features
         """

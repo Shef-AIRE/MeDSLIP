@@ -26,7 +26,6 @@ class MeDSLIP(nn.Module):
     def __init__(self, config, disease_book):
         super(MeDSLIP, self).__init__()
 
-       
         self.d_model = config["d_model"]
         # ''' book embedding'''
         with torch.no_grad():
@@ -49,8 +48,6 @@ class MeDSLIP(nn.Module):
         # self.pe_fc_e_ = nn.Linear(256, 768)
         # self.pe_fc_p_ = nn.Linear(256, 768)
 
-
-        
         """ visual backbone"""
         self.resnet_dict = {
             "resnet18": models.resnet18(pretrained=False),
@@ -65,7 +62,6 @@ class MeDSLIP(nn.Module):
         self.res_l2_e = nn.Linear(num_ftrs, self.d_model)
 
         self.mask_generator = nn.Linear(num_ftrs, num_ftrs)
-
 
         ###################################
         """ Query Decoder"""

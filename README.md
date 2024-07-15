@@ -13,7 +13,7 @@ Check checkpoints dir to download our pre-trained model. It can be used for all 
 
     We give an example on CXR14 in ```Sample_Zero-Shot_Classification_CXR14```. Change the path, and test our model by ```python test.py```
     We give an example on RSNA in ```Sample_Zero-Shot_Classification_RSNA```. Change the path, and test our model by ```python test.py```
-    
+
 * **Zero-Shot Grounding:**
 
     We give an example on RSNA_Pneumonia in ```Sample_Zero-Shot_Grounding_RSNA```. Change the path, and test our model by ```python test.py```

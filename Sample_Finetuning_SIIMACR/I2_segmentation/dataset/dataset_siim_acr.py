@@ -17,9 +17,9 @@ class SIIM_ACR_Dataset(Dataset):
             choice_list = np.random.choice(
                 range(len(data_info)), size=total_len, replace=False
             )
-            self.img_path_list = data_info['image_path'][choice_list].tolist()
+            self.img_path_list = data_info["image_path"][choice_list].tolist()
         else:
-            self.img_path_list = data_info['image_path'].tolist()
+            self.img_path_list = data_info["image_path"].tolist()
 
         self.img_root = "SIIM-CLS/siim-acr-pneumothorax/png_images/"
         self.seg_root = "SIIM-CLS/siim-acr-pneumothorax/png_masks/"  # We have pre-processed the original SIIM_ACR data, you may change this to fix your data
@@ -57,12 +57,12 @@ class SIIM_ACR_Dataset(Dataset):
             )
 
     def __getitem__(self, index):
-        img_path = self.img_root + self.img_path_list[index].split('/')[-1] #+ ".png"
+        img_path = self.img_root + self.img_path_list[index].split("/")[-1]  # + ".png"
         seg_path = (
-            self.seg_root + self.img_path_list[index].split('/')[-1] #+ ".png"
+            self.seg_root + self.img_path_list[index].split("/")[-1]  # + ".png"
         )  # We have pre-processed the original SIIM_ACR data, you may change this to fix your data
         img = np.array(PIL.Image.open(img_path).convert("RGB"))
-        seg_map = np.array(PIL.Image.open(seg_path))[:, :, np.newaxis]/255
+        seg_map = np.array(PIL.Image.open(seg_path))[:, :, np.newaxis] / 255
 
         augmented = self.aug(image=img, mask=seg_map)
         img, seg_map = augmented["image"], augmented["mask"]

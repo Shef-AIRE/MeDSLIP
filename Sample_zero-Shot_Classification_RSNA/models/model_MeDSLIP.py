@@ -26,7 +26,6 @@ class MeDSLIP(nn.Module):
     def __init__(self, config, disease_book):
         super(MeDSLIP, self).__init__()
 
-       
         self.d_model = config["d_model"]
         # ''' book embedding'''
         with torch.no_grad():
@@ -49,8 +48,6 @@ class MeDSLIP(nn.Module):
         # self.pe_fc_e_ = nn.Linear(256, 768)
         # self.pe_fc_p_ = nn.Linear(256, 768)
 
-
-        
         """ visual backbone"""
         self.resnet_dict = {
             "resnet18": models.resnet18(pretrained=False),
@@ -65,7 +62,6 @@ class MeDSLIP(nn.Module):
         self.res_l2_e = nn.Linear(num_ftrs, self.d_model)
 
         self.mask_generator = nn.Linear(num_ftrs, num_ftrs)
-
 
         ###################################
         """ Query Decoder"""
@@ -134,7 +130,7 @@ class MeDSLIP(nn.Module):
         res_fea = self.res_features(xis)  # batch_size,feature_size,patch_num,patch_num
         res_fea = rearrange(res_fea, "b d n1 n2 -> b (n1 n2) d")
         x = rearrange(res_fea, "b n d -> (b n) d")
-        
+
         # x_e = x[:, 0:int(x.shape[1] / 2)]
         # x_p = x[:, int(x.shape[1] / 2):]
         masks = self.mask_generator(x)
@@ -201,7 +197,7 @@ class MeDSLIP(nn.Module):
 # import torch.nn as nn
 # import torch
 # import math
-# import numpy as np  
+# import numpy as np
 # from torch.nn.utils.rnn import pad_sequence
 # import torch.nn.functional as F
 # from .transformer import *
@@ -212,13 +208,11 @@ class MeDSLIP(nn.Module):
 # args.N
 # args.d_model
 # args.res_base_model
-# args.H 
+# args.H
 # args.num_queries
 # args.dropout
 # args.attribute_set_size
 # '''
-
-
 
 
 # class MeDSLIP(nn.Module):
@@ -234,8 +228,8 @@ class MeDSLIP(nn.Module):
 #             self.disease_book = self.disease_book.last_hidden_state[:,0,:]
 #         self.disease_embedding_layer = nn.Linear(768,256)
 #         self.cl_fc = nn.Linear(256,768)
-        
-        
+
+
 #         ''' visual backbone'''
 #         self.resnet_dict = {"resnet18": models.resnet18(pretrained=False),
 #                             "resnet50": models.resnet50(pretrained=False)}
@@ -250,7 +244,7 @@ class MeDSLIP(nn.Module):
 #         ''' Query Decoder'''
 #         ###################################
 
-#         self.H = config['H'] 
+#         self.H = config['H']
 #         decoder_layer = TransformerDecoderLayer(self.d_model, config['H'] , 1024,
 #                                         0.1, 'relu',normalize_before=True)
 #         decoder_norm = nn.LayerNorm(self.d_model)
@@ -285,7 +279,7 @@ class MeDSLIP(nn.Module):
 #                 for param in list(model.encoder.layer[layer_idx].parameters()):
 #                     param.requires_grad = False
 #         return model
-    
+
 #     def image_encoder(self, xis):
 #         #patch features
 #         """
@@ -302,30 +296,28 @@ class MeDSLIP(nn.Module):
 #         # h = h.squeeze()
 #         x = self.res_l1(h)
 #         x = F.relu(x)
-        
-        
+
+
 #         x = self.res_l2(x)
 #         out_emb = rearrange(x,'(b n) d -> b n d',b=batch_size)
 #         return out_emb
 
 #     def forward(self, images):
 #         B = images.shape[0]
-        
+
 #         device = images.device
 #         ''' Visual Backbone '''
 #         x = self.image_encoder(images) #batch_size,patch_num,dim
 #         features = x.transpose(0,1) #patch_num b dim
-        
+
 #         query_embed = self.disease_embedding_layer(self.disease_book)
 #         query_embed = query_embed.unsqueeze(1).repeat(1, B, 1)
-#         features,ws = self.decoder(query_embed, features, 
+#         features,ws = self.decoder(query_embed, features,
 #             memory_key_padding_mask=None, pos=None, query_pos=None)
 #         out = self.dropout_feas(features)
 #         x= self.classifier(out).transpose(0,1) #B query Atributes
-        
-#         return x
-        
 
+#         return x
 
 
 #     @staticmethod

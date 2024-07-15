@@ -219,7 +219,6 @@ def main(args, config):
     print("Start testing")
     model.eval()
 
-    
     gt = torch.FloatTensor()
     gt = gt.to(device)
     pred = torch.FloatTensor()
@@ -257,11 +256,14 @@ def main(args, config):
     acc_avg = np.array(accs).mean()
     print("The average f1 is {F1_avg:.4f}".format(F1_avg=f1_avg))
     print("The average ACC is {ACC_avg:.4f}".format(ACC_avg=acc_avg))
-            
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="Sample_zero-Shot_Classification_RSNA/configs/MeDSLIP_config.yaml")
+    parser.add_argument(
+        "--config",
+        default="Sample_zero-Shot_Classification_RSNA/configs/MeDSLIP_config.yaml",
+    )
     parser.add_argument("--checkpoint", default="checkpoint.pth")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--gpu", type=str, default="0", help="gpu")

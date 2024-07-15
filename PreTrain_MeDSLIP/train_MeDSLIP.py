@@ -8,6 +8,7 @@ import datetime
 import json
 from pathlib import Path
 import warnings
+
 warnings.filterwarnings("ignore")
 
 
@@ -101,7 +102,14 @@ def train(
 
         optimizer.zero_grad()
 
-        loss, loss_ce_pathology, loss_cl_pathology, loss_ce_anatomy, loss_cl_anatomy, loss_ap = model(
+        (
+            loss,
+            loss_ce_pathology,
+            loss_cl_pathology,
+            loss_ce_anatomy,
+            loss_cl_anatomy,
+            loss_ap,
+        ) = model(
             images,
             labels_pathology=labels_pathology,
             labels_anatomy=labels_anatomy,
@@ -138,7 +146,7 @@ def train(
     return {
         k: "{:.3f}".format(meter.global_avg)
         for k, meter in metric_logger.meters.items()
-    } 
+    }
 
 
 def valid(model, data_loader, epoch, device, config, writer):
@@ -155,7 +163,14 @@ def valid(model, data_loader, epoch, device, config, writer):
         matrix = sample["matrix"].to(device)
 
         with torch.no_grad():
-            loss, loss_ce_pathology, loss_cl_pathology, loss_ce_anatomy, loss_cl_anatomy, loss_ap = model(
+            (
+                loss,
+                loss_ce_pathology,
+                loss_cl_pathology,
+                loss_ce_anatomy,
+                loss_cl_anatomy,
+                loss_ap,
+            ) = model(
                 images,
                 labels_pathology=labels_pathology,
                 labels_anatomy=labels_anatomy,
@@ -168,10 +183,18 @@ def valid(model, data_loader, epoch, device, config, writer):
             )
             val_loss.append(loss.item())
             writer.add_scalar("val_loss/loss", loss, val_scalar_step)
-            writer.add_scalar("val_loss/loss_ce_pathology", loss_ce_pathology, val_scalar_step)
-            writer.add_scalar("val_loss/loss_cl_pathology", loss_cl_pathology, val_scalar_step)
-            writer.add_scalar("val_loss/loss_ce_anatomy", loss_ce_anatomy, val_scalar_step)
-            writer.add_scalar("val_loss/loss_cl_anatomy", loss_cl_anatomy, val_scalar_step)
+            writer.add_scalar(
+                "val_loss/loss_ce_pathology", loss_ce_pathology, val_scalar_step
+            )
+            writer.add_scalar(
+                "val_loss/loss_cl_pathology", loss_cl_pathology, val_scalar_step
+            )
+            writer.add_scalar(
+                "val_loss/loss_ce_anatomy", loss_ce_anatomy, val_scalar_step
+            )
+            writer.add_scalar(
+                "val_loss/loss_cl_anatomy", loss_cl_anatomy, val_scalar_step
+            )
             writer.add_scalar("val_loss/loss_ap", loss_ap, val_scalar_step)
             val_scalar_step += 1
     avg_val_loss = np.array(val_loss).mean()
@@ -179,7 +202,7 @@ def valid(model, data_loader, epoch, device, config, writer):
 
 
 def main(args, config):
-    
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if args.computing == "parallel":
         world_size = torch.distributed.get_world_size()
@@ -205,8 +228,12 @@ def main(args, config):
     )
     if args.computing == "parallel":
         # shuffl
-        train_sampler = torch.utils.data.distributed.DistributedSampler(train_datasets, num_replicas=world_size, rank=rank, shuffle=True)
-        val_sampler = torch.utils.data.distributed.DistributedSampler(val_datasets, num_replicas=world_size, rank=rank, shuffle=True)
+        train_sampler = torch.utils.data.distributed.DistributedSampler(
+            train_datasets, num_replicas=world_size, rank=rank, shuffle=True
+        )
+        val_sampler = torch.utils.data.distributed.DistributedSampler(
+            val_datasets, num_replicas=world_size, rank=rank, shuffle=True
+        )
     else:
         train_sampler = torch.utils.data.RandomSampler(train_datasets)
         val_sampler = torch.utils.data.RandomSampler(val_datasets)
@@ -234,76 +261,75 @@ def main(args, config):
     json_book = json.load(open(config["pathology_book"], "r"))
     pathology_book = [json_book[i] for i in json_book]
     anatomy_list = [
-            "trachea",
-            "left_hilar",
-            "right_hilar",
-            "hilar_unspec",
-            "left_pleural",
-            "right_pleural",
-            "pleural_unspec",
-            "heart_size",
-            "heart_border",
-            "left_diaphragm",
-            "right_diaphragm",
-            "diaphragm_unspec",
-            "retrocardiac",
-            "lower_left_lobe",
-            "upper_left_lobe",
-            "lower_right_lobe",
-            "middle_right_lobe",
-            "upper_right_lobe",
-            "left_lower_lung",
-            "left_mid_lung",
-            "left_upper_lung",
-            "left_apical_lung",
-            "left_lung_unspec",
-            "right_lower_lung",
-            "right_mid_lung",
-            "right_upper_lung",
-            "right_apical_lung",
-            "right_lung_unspec",
-            "lung_apices",
-            "lung_bases",
-            "left_costophrenic",
-            "right_costophrenic",
-            "costophrenic_unspec",
-            "cardiophrenic_sulcus",
-            "mediastinal",
-            "spine",
-            "clavicle",
-            "rib",
-            "stomach",
-            "right_atrium",
-            "right_ventricle",
-            "aorta",
-            "svc",
-            "interstitium",
-            "parenchymal",
-            "cavoatrial_junction",
-            "cardiopulmonary",
-            "pulmonary",
-            "lung_volumes",
-            "unspecified",
-            "other",
-        ]
+        "trachea",
+        "left_hilar",
+        "right_hilar",
+        "hilar_unspec",
+        "left_pleural",
+        "right_pleural",
+        "pleural_unspec",
+        "heart_size",
+        "heart_border",
+        "left_diaphragm",
+        "right_diaphragm",
+        "diaphragm_unspec",
+        "retrocardiac",
+        "lower_left_lobe",
+        "upper_left_lobe",
+        "lower_right_lobe",
+        "middle_right_lobe",
+        "upper_right_lobe",
+        "left_lower_lung",
+        "left_mid_lung",
+        "left_upper_lung",
+        "left_apical_lung",
+        "left_lung_unspec",
+        "right_lower_lung",
+        "right_mid_lung",
+        "right_upper_lung",
+        "right_apical_lung",
+        "right_lung_unspec",
+        "lung_apices",
+        "lung_bases",
+        "left_costophrenic",
+        "right_costophrenic",
+        "costophrenic_unspec",
+        "cardiophrenic_sulcus",
+        "mediastinal",
+        "spine",
+        "clavicle",
+        "rib",
+        "stomach",
+        "right_atrium",
+        "right_ventricle",
+        "aorta",
+        "svc",
+        "interstitium",
+        "parenchymal",
+        "cavoatrial_junction",
+        "cardiopulmonary",
+        "pulmonary",
+        "lung_volumes",
+        "unspecified",
+        "other",
+    ]
     anatomy_book = []
     for i in anatomy_list:
-        anatomy_book.append(
-            "It is located at " + i + '. '
-        )
+        anatomy_book.append("It is located at " + i + ". ")
 
-    
     tokenizer = BertTokenizer.from_pretrained(config["text_encoder"])
     anatomy_book_tokenizer = get_tokenizer(tokenizer, anatomy_book).to(device)
     pathology_book_tokenizer = get_tokenizer(tokenizer, pathology_book).to(device)
     print("Creating model")
-    model = MeDSLIP(config, anatomy_book_tokenizer, pathology_book_tokenizer, mode="train")
+    model = MeDSLIP(
+        config, anatomy_book_tokenizer, pathology_book_tokenizer, mode="train"
+    )
     model = model.to(device)
     if args.computing == "parallel":
         model = nn.parallel.DistributedDataParallel(
             model, device_ids=[rank], find_unused_parameters=True
         )
-    
+
     arg_opt = utils.AttrDict(config["optimizer"])
     optimizer = create_optimizer(arg_opt, model)
     arg_sche = utils.AttrDict(config["schedular"])
@@ -385,18 +411,22 @@ def main(args, config):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="PreTrain_MeDSLIP/configs/Pretrain_MeDSLIP.yaml")
+    parser.add_argument(
+        "--config", default="PreTrain_MeDSLIP/configs/Pretrain_MeDSLIP.yaml"
+    )
     parser.add_argument("--checkpoint", default="")
     parser.add_argument("--output_dir", default="runs/")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--local_rank", default=0, type=int)
     parser.add_argument("--world_size", default=1, type=int)
-    parser.add_argument("--computing", type=str, default='single', help="number of gpus")
+    parser.add_argument(
+        "--computing", type=str, default="single", help="number of gpus"
+    )
     args = parser.parse_args()
     import datetime
+
     args.output_dir = os.path.join(
-        args.output_dir,
-        datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
+        args.output_dir, datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
     )
 
     gpus = torch.cuda.device_count()
@@ -409,7 +439,7 @@ if __name__ == "__main__":
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
 
     yaml.dump(config, open(os.path.join(args.output_dir, "config.yaml"), "w"))
-    
+
     if args.computing == "parallel":
         torch.distributed.init_process_group(backend="nccl", init_method="env://")
 

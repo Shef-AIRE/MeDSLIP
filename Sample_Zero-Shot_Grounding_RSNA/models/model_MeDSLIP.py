@@ -47,7 +47,6 @@ class MeDSLIP(nn.Module):
         self.cl_fc_e = nn.Linear(256, 768)
         self.cl_fc_p = nn.Linear(256, 768)
 
-        
         """ visual backbone"""
         self.resnet_dict = {
             "resnet18": models.resnet18(pretrained=False),
@@ -62,7 +61,6 @@ class MeDSLIP(nn.Module):
         self.res_l2_e = nn.Linear(num_ftrs, self.d_model)
 
         self.mask_generator = nn.Linear(num_ftrs, num_ftrs)
-
 
         ###################################
         """ Query Decoder"""
