@@ -24,9 +24,20 @@ Check checkpoints dir to download our pre-trained model. It can be used for all 
     We give segmentation and classification finetune code on SIIM_ACR dataset in ```Sample_Finetuning_SIIMACR```. Modify the path, and finetune our model by ```python I1_classification/train_res_ft.py``` or ```python I2_segementation/train_res_ft.py```
 
 ## Pre-train:
+### Data Preparation
+All files for data preparation can be downloaded from [Hugging Face: MeDSLIP](https://huggingface.co/pykale/MeDSLIP).
+- Extracted triplets: `landmark_observation_adj_mtx.npy`
+- Training list: `rad_graph_metric_train.json`
+- Validation list: `rad_graph_metric_validate.json`
+- Test list: `rad_graph_metric_test.json`
+
+### Pre-training
 Our pre-train code is given in ```Train_MeDSLIP```.
 * Check the ```Train_MeDSLIP\data_file``` dir and download the pre-processed data files.
 * Modify the path as you disire in ```PreTrain_MeDSLIP/configs/Pretrain_MeDSLIP.yaml```, and ```python PreTrain_MeDSLIP/train_MeDSLIP.py``` to pre-train.
+
+### Pre-trained Model
+Our pre-trained model can be downloaded from [Hugging Face: MeDSLIP](https://huggingface.co/pykale/MeDSLIP).
 
 ## Reference
 - Wu, Chaoyi, Xiaoman Zhang, Ya Zhang, Yanfeng Wang, and Weidi Xie. "MedKLIP: Medical Knowledge Enhanced Language-Image Pre-Training in Radiology." arXiv preprint arXiv:2301.02228 (2023).

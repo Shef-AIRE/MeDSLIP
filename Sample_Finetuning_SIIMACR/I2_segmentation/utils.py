@@ -307,38 +307,3 @@ def init_distributed_mode(args):
     )
     torch.distributed.barrier()
     setup_for_distributed(args.rank == 0)
-
-
-# def init_distributed_mode(args):
-
-#     # if 'RANK' in os.environ and 'WORLD_SIZE' in os.environ:
-#     #     args.rank = int(os.environ["RANK"])
-#     #     args.world_size = int(os.environ['WORLD_SIZE'])
-#     #     args.gpu = int(os.environ['LOCAL_RANK'])
-#     # elif 'SLURM_PROCID' in os.environ:
-#     #     args.rank = int(os.environ['SLURM_PROCID'])
-#     #     args.gpu = args.rank % torch.cuda.device_count()
-#     # else:
-#     #     print('Not using distributed mode')
-#     #     args.distributed = False
-#     #     return
-#     # rank = int(os.environ['RANK'])                # system env process ranks\
-#     # print(torch.distributed.get_world_size())
-
-#     args.distributed = True
-#     # torch.cuda.set_device(args.gpu)
-#     num_gpus = torch.cuda.device_count()          # Returns the number of GPUs available
-#     torch.cuda.set_device(args.rank % num_gpus)
-#     # args.gpu = args.rank % torch.cuda.device_count()
-
-#     args.dist_backend = 'nccl'
-#     print('| distributed init (rank {}): {}'.format(
-#         args.rank, args.dist_url), flush=True)
-#     torch.distributed.init_process_group(backend=args.dist_backend, init_method=args.dist_url,
-#                                          world_size=args.world_size, rank=args.rank)
-#     torch.distributed.barrier()
-#     print('using distributed mode',args.rank, args.dist_url)
-#     setup_for_distributed(args.rank == 0)
-
-# # export MASTER_ADDR=localhost
-# # export MASTER_PORT=5678

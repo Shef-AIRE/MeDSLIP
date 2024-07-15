@@ -249,7 +249,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="Sample_zero-shot_Classification_CXR14/configs/MeDSLIP_config.yaml")
     
-    parser.add_argument("--model_path", default="/home/wenrui/Projects/MIMIC/MeDSLIP/runs/dual_stream/2024-02-14_22-44-14/checkpoint_64.pth")
+    parser.add_argument("--model_path", default="checkpoint.pth")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--gpu", type=str, default="0", help="gpu")
     args = parser.parse_args()

@@ -34,8 +34,8 @@ class SIIM_ACR_Dataset(Dataset):
         else:
             self.img_path_list = data_info['image_path'].tolist()
 
-        self.img_root = "/home/wenrui/Projects/MIMIC/Data/SIIM-CLS/siim-acr-pneumothorax/png_images/"
-        self.seg_root = "/home/wenrui/Projects/MIMIC/Data/SIIM-CLS/siim-acr-pneumothorax/png_masks/"  # We have pre-processed the original SIIM_ACR data, you may change this to fix your data
+        self.img_root = "SIIM-CLS/siim-acr-pneumothorax/png_images/"
+        self.seg_root = "SIIM-CLS/siim-acr-pneumothorax/png_masks/"  # We have pre-processed the original SIIM_ACR data, you may change this to fix your data
 
         normalize = transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
 

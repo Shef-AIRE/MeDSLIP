@@ -228,7 +228,6 @@ def main(args, config):
     for i, sample in enumerate(loop):
         loop.set_description(f"Testing: {i+1}/{len(test_dataloader)}")
         images = sample["image"].to(device)
-        batch_size = images.shape[0]
         labels = sample["label"].to(device)
         gt = torch.cat((gt, labels), 0)
 
@@ -262,8 +261,8 @@ def main(args, config):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="/home/wenrui/Projects/MIMIC/MeDSLIP/Sample_zero-Shot_Classification_RSNA/configs/MeDSLIP_config.yaml")
-    parser.add_argument("--checkpoint", default="/home/wenrui/Projects/MIMIC/MeDSLIP/runs/dual_stream/2024-02-14_22-44-14/checkpoint_64.pth")
+    parser.add_argument("--config", default="Sample_zero-Shot_Classification_RSNA/configs/MeDSLIP_config.yaml")
+    parser.add_argument("--checkpoint", default="checkpoint.pth")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--gpu", type=str, default="0", help="gpu")
     parser.add_argument("--use_ws_p", type=bool, default=False, help="use ws_p")

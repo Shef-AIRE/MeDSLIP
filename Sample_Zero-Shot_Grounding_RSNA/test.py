@@ -155,7 +155,6 @@ def main(args, config):
     )
     json_book = json.load(open(config["disease_book"], "r"))
     disease_book = [json_book[i] for i in json_book]
-    # json_book = json.load(open(config["anatomy_book"], "r"))
     ana_list = [
             "trachea",
             "left_hilar",
@@ -210,7 +209,6 @@ def main(args, config):
             "other",
         ]
     ana_book = []
-    ana_book_simple = []
     for i in ana_list:
         ana_book.append(
             "It is located at " + i + '. '
@@ -252,32 +250,18 @@ def main(args, config):
         with torch.no_grad():
             _, _, ws_e, ws_p, features_e, features_p = model(
                 images, labels, is_train=False
-            )  # batch_size,batch_size,image_patch,text_patch
+            )
             features_e = features_e.transpose(0, 1)
             features_p = features_p.transpose(0, 1)
             ws_e = (ws_e[-4] + ws_e[-3] + ws_e[-2] + ws_e[-1]) / 4
             ws_p = (ws_p[-4] + ws_p[-3] + ws_p[-2] + ws_p[-1]) / 4
-
-            # print(ws_p[0].sum(), ws_p[0].max(), ws_p[0].min())
-
-            # ws_e = ws_e.reshape(batch_size, ws_e.shape[1], 14, 14)
             pred_map = (
-                ws_e[:, original_class.index("pneumonia"), :] # .detach().cpu().numpy()
+                ws_e[:, original_class.index("pneumonia"), :]
             )
-            feature_e = (
-                features_e[:, original_class.index("pneumonia"), :]
-            )
+
             threshold = 0
             if args.use_ws_p:
                 pred_map = pred_map.unsqueeze(1)
-                # feature_e = feature_e.unsqueeze(1)
-                # similarity = torch.bmm(feature_e, features_p.transpose(1, 2)).squeeze(1)
-                # ids = torch.argmax(similarity, dim=1)
-                # temp = torch.zeros(batch_size, ws_p.shape[2]).to(device)    
-                # for i in range(batch_size):
-                #     temp[i] = ws_p[i, ids[i]]
-                
-                # pred_map = (pred_map.squeeze() * temp)
                 pred_map = pred_map.repeat(1, ws_p.shape[1], 1)
                 pred_map = (pred_map * ws_p).mean(axis=1)
                 threshold = 0.01
@@ -323,7 +307,7 @@ def main(args, config):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="Sample_Zero-Shot_Grounding_RSNA/configs/MeDSLIP_config.yaml")
-    parser.add_argument("--checkpoint", default="runs/dual_stream/2024-02-14_22-44-14/checkpoint_64.pth")
+    parser.add_argument("--checkpoint", default="checkpoint.pth")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--gpu", type=str, default="0", help="gpu")
     parser.add_argument("--use_ws_p", type=bool, default=False, help="use ws_p")

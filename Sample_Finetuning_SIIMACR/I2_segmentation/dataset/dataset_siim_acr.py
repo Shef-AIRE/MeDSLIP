@@ -10,7 +10,6 @@ from albumentations.pytorch.transforms import ToTensorV2
 
 
 class SIIM_ACR_Dataset(Dataset):
-    # def __init__(self, csv_path, is_train=True):
     def __init__(self, csv_path, is_train=True, percentage=0.01):
         data_info = pd.read_csv(csv_path)
         if is_train == True:
@@ -22,8 +21,8 @@ class SIIM_ACR_Dataset(Dataset):
         else:
             self.img_path_list = data_info['image_path'].tolist()
 
-        self.img_root = "/home/wenrui/Projects/MIMIC/Data/SIIM-CLS/siim-acr-pneumothorax/png_images/"
-        self.seg_root = "/home/wenrui/Projects/MIMIC/Data/SIIM-CLS/siim-acr-pneumothorax/png_masks/"  # We have pre-processed the original SIIM_ACR data, you may change this to fix your data
+        self.img_root = "SIIM-CLS/siim-acr-pneumothorax/png_images/"
+        self.seg_root = "SIIM-CLS/siim-acr-pneumothorax/png_masks/"  # We have pre-processed the original SIIM_ACR data, you may change this to fix your data
 
         if is_train:
             self.aug = A.Compose(
@@ -62,7 +61,6 @@ class SIIM_ACR_Dataset(Dataset):
         seg_path = (
             self.seg_root + self.img_path_list[index].split('/')[-1] #+ ".png"
         )  # We have pre-processed the original SIIM_ACR data, you may change this to fix your data
-        # img = PIL.Image.open(img_path).convert("RGB")
         img = np.array(PIL.Image.open(img_path).convert("RGB"))
         seg_map = np.array(PIL.Image.open(seg_path))[:, :, np.newaxis]/255
 
