@@ -171,7 +171,6 @@ def main(args, config):
     print("Start training")
     start_time = time.time()
 
-    best_val_loss = 10.0
     best_test_auc = 0.0
     writer = SummaryWriter(os.path.join(args.output_dir, "log"))
     for epoch in range(start_epoch, max_epoch):
@@ -220,7 +219,6 @@ def main(args, config):
             with open(os.path.join(args.output_dir, "log.txt"), "a") as f:
                 f.write(json.dumps(log_stats) + "\n")
         
-        # print(best_val_loss, val_loss)
         test_auc = test(args, config)
         print(best_test_auc, test_auc)
         if test_auc > best_test_auc:
@@ -232,7 +230,6 @@ def main(args, config):
                 "epoch": epoch,
             }
             torch.save(save_obj, os.path.join(args.output_dir, "best_test.pth"))
-            # best_val_loss = val_loss
             best_test_auc = test_auc
             args.model_path = os.path.join(args.output_dir, "checkpoint_state.pth")
             
