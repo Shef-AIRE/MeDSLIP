@@ -3,8 +3,6 @@
 ## Introduction:
 
 The official implementation  code for "MeDSLIP: Medical Knowledge Enhanced Language-Image Pre-Training in Radiology".
-<!-- 
-[**Paper Web**](https://chaoyi-wu.github.io/MeDSLIP/) -->
 
 [**Arxiv Version**](https://arxiv.org/abs/2403.10635)
 
@@ -13,33 +11,41 @@ Check checkpoints dir to download our pre-trained model. It can be used for all 
 
 * **Zero-Shot Classification:**
 
-    We give an example on CXR14 in ```Sample_Zero-Shot_Classification_CXR14```. Modify the path, and test our model by ```python test.py```
-    We give an example on RSNA in ```Sample_Zero-Shot_Classification_RSNA```. Modify the path, and test our model by ```python test.py```
+    We give an example on CXR14 in ```Sample_Zero-Shot_Classification_CXR14```. Change the path, and test our model by ```python test.py```
+    We give an example on RSNA in ```Sample_Zero-Shot_Classification_RSNA```. Change the path, and test our model by ```python test.py```
     
 * **Zero-Shot Grounding:**
 
-    We give an example on RSNA_Pneumonia in ```Sample_Zero-Shot_Grounding_RSNA```. Modify the path, and test our model by ```python test.py```
+    We give an example on RSNA_Pneumonia in ```Sample_Zero-Shot_Grounding_RSNA```. Change the path, and test our model by ```python test.py```
 * **Finetuning:**
 
-    We give segmentation and classification finetune code on SIIM_ACR dataset in ```Sample_Finetuning_SIIMACR```. Modify the path, and finetune our model by ```python I1_classification/train_res_ft.py``` or ```python I2_segementation/train_res_ft.py```
+    We give segmentation and classification finetune code on SIIM_ACR dataset in ```Sample_Finetuning_SIIMACR```. Change the path, and finetune our model by ```python I1_classification/train_res_ft.py``` or ```python I2_segementation/train_res_ft.py```
 
 ## Pre-train:
 ### Data Preparation
 All files for data preparation can be downloaded from [Hugging Face: MeDSLIP](https://huggingface.co/pykale/MeDSLIP).
 - Extracted triplets: `landmark_observation_adj_mtx.npy`
-- Training list: `rad_graph_metric_train.json`
-- Validation list: `rad_graph_metric_validate.json`
-- Test list: `rad_graph_metric_test.json`
+- Training list: `train.json`
+- Validation list: `valid.json`
+- Test list: `test.json`
 
 ### Pre-training
-Our pre-train code is given in ```Train_MeDSLIP```.
-* Check the ```Train_MeDSLIP\data_file``` dir and download the pre-processed data files.
-* Modify the path as you disire in ```PreTrain_MeDSLIP/configs/Pretrain_MeDSLIP.yaml```, and ```python PreTrain_MeDSLIP/train_MeDSLIP.py``` to pre-train.
+Our pre-train code is given in ```PreTrain_MeDSLIP```.
+* Check the ```PreTrain_MeDSLIP/data_file``` dir and download the files for data preparation.
+* Change the data and preparation files paths as you disire in ```PreTrain_MeDSLIP/configs/Pretrain_MeDSLIP.yaml```, and ```python PreTrain_MeDSLIP/train_MeDSLIP.py``` to pre-train.
 
 ### Pre-trained Model
 Our pre-trained model can be downloaded from [Hugging Face: MeDSLIP](https://huggingface.co/pykale/MeDSLIP).
 
 ## Reference
-- Wu, Chaoyi, Xiaoman Zhang, Ya Zhang, Yanfeng Wang, and Weidi Xie. "MedKLIP: Medical Knowledge Enhanced Language-Image Pre-Training in Radiology." arXiv preprint arXiv:2301.02228 (2023).
+```
+@article{fan2024medslip,
+  title={MeDSLIP: Medical Dual-Stream Language-Image Pre-training for Fine-grained Alignment},
+  author={Fan, Wenrui and Suvon, Mohammod Naimul Islam and Zhou, Shuo and Liu, Xianyuan and Alabed, Samer and Osmani, Venet and Swift, Andrew and Chen, Chen and Lu, Haiping},
+  journal={arXiv preprint arXiv:2403.10635},
+  year={2024}
+}
+```
+
 ## Contact
 If you have any question, please feel free to contact winslow.fan@outlook.com.
