@@ -20,8 +20,6 @@ from dataset.randaugment import RandomAugment
 class Chestxray14_Dataset(Dataset):
     def __init__(self, csv_path, is_train=True):
         data_info = pd.read_csv(csv_path)
-        # self.img_path_list = np.asarray(data_info.iloc[:,0])
-        # self.class_list = np.asarray(data_info.iloc[:,3:])
 
         self.img_path_list = np.asarray(data_info.iloc[:, 0])
         self.class_list = np.asarray(data_info.iloc[:, 2:])

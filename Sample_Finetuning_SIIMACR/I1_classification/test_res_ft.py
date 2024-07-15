@@ -9,7 +9,6 @@ import argparse
 import os
 import ruamel_yaml as yaml
 import numpy as np
-import random
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -34,7 +33,6 @@ def compute_AUCs(gt, pred, n_class):
     AUROCs = []
     gt_np = gt.cpu().numpy()
     pred_np = pred.cpu().numpy()
-    # pr
     for i in range(n_class):
         AUROCs.append(roc_auc_score(gt_np[:, i], pred_np[:, i]))
     return AUROCs
@@ -58,9 +56,10 @@ def test(args, config):
     )
 
     model = ModelRes_ft(res_base_model="resnet50", out_size=1)
-    model = nn.DataParallel(
-        model, device_ids=[i for i in range(torch.cuda.device_count())]
-    )
+    if args.ddp:
+        model = nn.DataParallel(
+            model, device_ids=[i for i in range(torch.cuda.device_count())]
+        )
     model = model.to(device)
 
     print("Load model from checkpoint:", args.model_path)
@@ -116,6 +115,7 @@ if __name__ == "__main__":
     parser.add_argument("--model_path", default="best_valid.pth")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--gpu", type=str, default="0", help="gpu")
+    parser.add_argument("--ddp", action="store_true", help="whether to use ddp")
     args = parser.parse_args()
 
     config = yaml.load(open(args.config, "r"), Loader=yaml.Loader)

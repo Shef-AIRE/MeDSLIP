@@ -206,9 +206,10 @@ def main(args, config):
 
     print("Creating model")
     model = MeDSLIP(config, disease_book_tokenizer)
-    model = nn.DataParallel(
-        model, device_ids=[i for i in range(torch.cuda.device_count())]
-    )
+    if args.ddp:
+        model = nn.DataParallel(
+            model, device_ids=[i for i in range(torch.cuda.device_count())]
+        )
     model = model.to(device)
 
     checkpoint = torch.load(args.checkpoint, map_location="cpu")
@@ -264,10 +265,10 @@ if __name__ == "__main__":
         "--config",
         default="Sample_zero-Shot_Classification_RSNA/configs/MeDSLIP_config.yaml",
     )
-    parser.add_argument("--checkpoint", default="checkpoint.pth")
+    parser.add_argument("--checkpoint", default="MeDSLIP_resnet50.pth")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--gpu", type=str, default="0", help="gpu")
-    parser.add_argument("--use_ws_p", type=bool, default=False, help="use ws_p")
+    parser.add_argument("--ddp", action="store_true", help="use ddp")
 
     args = parser.parse_args()
 

@@ -2,7 +2,6 @@ import argparse
 import os
 import ruamel_yaml as yaml
 import numpy as np
-import random
 import time
 import datetime
 import json
@@ -82,7 +81,7 @@ def train(
     return {
         k: "{:.6f}".format(meter.global_avg)
         for k, meter in metric_logger.meters.items()
-    }  # ,loss_epoch.mean()
+    }
 
 
 def valid(model, data_loader, criterion, epoch, device, config, writer):
@@ -114,37 +113,38 @@ def main(args, config):
 
     #### Dataset ####
     print("Creating dataset")
-    train_dataset = SIIM_ACR_Dataset(
-        config["train_file"], percentage=config["percentage"]
-    )
-    train_dataloader = DataLoader(
-        train_dataset,
-        batch_size=config["batch_size"],
-        num_workers=30,
-        pin_memory=True,
-        sampler=None,
-        shuffle=True,
-        collate_fn=None,
-        drop_last=True,
-    )
+    # train_dataset = SIIM_ACR_Dataset(
+    #     config["train_file"], percentage=config["percentage"]
+    # )
+    # train_dataloader = DataLoader(
+    #     train_dataset,
+    #     batch_size=config["batch_size"],
+    #     num_workers=30,
+    #     pin_memory=True,
+    #     sampler=None,
+    #     shuffle=True,
+    #     collate_fn=None,
+    #     drop_last=True,
+    # )
 
-    val_dataset = SIIM_ACR_Dataset(config["valid_file"], is_train=False)
-    val_dataloader = DataLoader(
-        val_dataset,
-        batch_size=config["batch_size"],
-        num_workers=30,
-        pin_memory=True,
-        sampler=None,
-        shuffle=False,
-        collate_fn=None,
-        drop_last=False,
-    )
-    print(len(train_dataset), len(val_dataset))
+    # val_dataset = SIIM_ACR_Dataset(config["valid_file"], is_train=False)
+    # val_dataloader = DataLoader(
+    #     val_dataset,
+    #     batch_size=config["batch_size"],
+    #     num_workers=30,
+    #     pin_memory=True,
+    #     sampler=None,
+    #     shuffle=False,
+    #     collate_fn=None,
+    #     drop_last=False,
+    # )
+    # print(len(train_dataset), len(val_dataset))
 
     model = ModelRes_ft(res_base_model="resnet50", out_size=1, use_base=args.use_base)
-    model = nn.DataParallel(
-        model, device_ids=[i for i in range(torch.cuda.device_count())]
-    )
+    if args.ddp:
+        model = nn.DataParallel(
+            model, device_ids=[i for i in range(torch.cuda.device_count())]
+        )
     model = model.to(device)
 
     arg_opt = utils.AttrDict(config["optimizer"])
@@ -268,13 +268,14 @@ if __name__ == "__main__":
     )
     parser.add_argument("--checkpoint", default="")
     parser.add_argument("--model_path", default="")
-    parser.add_argument("--pretrain_path", default="checkpoint_state.pth")
+    parser.add_argument("--pretrain_path", default="MeDSLIP_resnet50.pth")
     parser.add_argument(
         "--output_dir", default="Sample_Finetuning_SIIMACR/I1_classification/runs/"
     )
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--gpu", type=str, default="0", help="gpu")
     parser.add_argument("--use_base", type=bool, default=True)
+    parser.add_argument("--ddp", action="store_true", help="use ddp")
     args = parser.parse_args()
 
     config = yaml.load(open(args.config, "r"), Loader=yaml.Loader)

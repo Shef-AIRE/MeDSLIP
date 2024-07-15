@@ -84,7 +84,7 @@ def train(
     return {
         k: "{:.6f}".format(meter.global_avg)
         for k, meter in metric_logger.meters.items()
-    }  # ,loss_epoch.mean()
+    }
 
 
 def valid(model, data_loader, criterion, epoch, device, config, writer):
@@ -147,9 +147,10 @@ def main(args, config):
         out_size=1,
         imagenet_pretrain=models.ResNet50_Weights.DEFAULT,
     )
-    model = nn.DataParallel(
-        model, device_ids=[i for i in range(torch.cuda.device_count())]
-    )
+    if args.ddp:
+        model = nn.DataParallel(
+            model, device_ids=[i for i in range(torch.cuda.device_count())]
+        )
     model = model.to(device)
 
     arg_opt = utils.AttrDict(config["optimizer"])
@@ -172,7 +173,6 @@ def main(args, config):
         state_dict = checkpoint["model"]
         model_dict = model.state_dict()
         model_checkpoint = {k: v for k, v in state_dict.items() if k in model_dict}
-        print(model_checkpoint.keys())
         model_dict.update(model_checkpoint)
         model.load_state_dict(model_dict)
         print("load pretrain_path from %s" % args.pretrain_path)
@@ -275,12 +275,13 @@ if __name__ == "__main__":
     )
     parser.add_argument("--checkpoint", default="")
     parser.add_argument("--model_path", default="")
-    parser.add_argument("--pretrain_path", default="checkpoint_state.pth")
+    parser.add_argument("--pretrain_path", default="MeDSLIP_resnet50.pth")
     parser.add_argument(
         "--output_dir", default="Sample_Finetuning_SIIMACR/I2_segmentation/runs"
     )
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--gpu", type=str, default="0", help="gpu")
+    parser.add_argument("--ddp", action="store_true", help="whether to use ddp")
     args = parser.parse_args()
 
     config = yaml.load(open(args.config, "r"), Loader=yaml.Loader)
