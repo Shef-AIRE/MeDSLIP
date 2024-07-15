@@ -7,23 +7,24 @@ The official implementation  code for "MeDSLIP: Medical Knowledge Enhanced Langu
 [**Arxiv Version**](https://arxiv.org/abs/2403.10635)
 
 ## Quick Start:
-Check checkpoints dir to download our pre-trained model. It can be used for all zero-shot && finetuning tasks
+Check checkpoints directory to download our pre-trained model from [Hugging Face: MeDSLIP](https://huggingface.co/pykale/MeDSLIP). It can be used for all zero-shot and finetuning tasks.
 
 * **Zero-Shot Classification:**
 
-    We give an example on CXR14 in ```Sample_Zero-Shot_Classification_CXR14```. Change the path, and test our model by ```python test.py```
-    We give an example on RSNA in ```Sample_Zero-Shot_Classification_RSNA```. Change the path, and test our model by ```python test.py```
+    We give an example on CXR14 in ```Sample_Zero-Shot_Classification_CXR14```. Change the data paths, and test our model by ```python test.py```.
+    We give an example on RSNA in ```Sample_Zero-Shot_Classification_RSNA```. Change the data paths, and test our model by ```python test.py```.
 
 * **Zero-Shot Grounding:**
 
-    We give an example on RSNA_Pneumonia in ```Sample_Zero-Shot_Grounding_RSNA```. Change the path, and test our model by ```python test.py```
+    We give an example on RSNA_Pneumonia in ```Sample_Zero-Shot_Grounding_RSNA```. Change the data paths, and test our model by ```python test.py```.
+
 * **Finetuning:**
 
-    We give segmentation and classification finetune code on SIIM_ACR dataset in ```Sample_Finetuning_SIIMACR```. Change the path, and finetune our model by ```python I1_classification/train_res_ft.py``` or ```python I2_segementation/train_res_ft.py```
+    We give segmentation and classification finetune code on SIIM_ACR dataset in ```Sample_Finetuning_SIIMACR```. Change the data paths, and finetune our model by ```python I1_classification/train_res_ft.py``` or ```python I2_segementation/train_res_ft.py```.
 
 ## Pre-train:
 ### Data Preparation
-All files for data preparation can be downloaded from [Hugging Face: MeDSLIP](https://huggingface.co/pykale/MeDSLIP).
+All files for data preparation files can be downloaded from [Hugging Face: MeDSLIP](https://huggingface.co/pykale/MeDSLIP).
 - Extracted triplets: `landmark_observation_adj_mtx.npy`
 - Training list: `train.json`
 - Validation list: `valid.json`
@@ -33,9 +34,6 @@ All files for data preparation can be downloaded from [Hugging Face: MeDSLIP](ht
 Our pre-train code is given in ```PreTrain_MeDSLIP```.
 * Check the ```PreTrain_MeDSLIP/data_file``` dir and download the files for data preparation.
 * Change the data and preparation files paths as you disire in ```PreTrain_MeDSLIP/configs/Pretrain_MeDSLIP.yaml```, and ```python PreTrain_MeDSLIP/train_MeDSLIP.py``` to pre-train.
-
-### Pre-trained Model
-Our pre-trained model can be downloaded from [Hugging Face: MeDSLIP](https://huggingface.co/pykale/MeDSLIP).
 
 ## Reference
 ```
